@@ -115,7 +115,7 @@ function MediaThumb({
 
 export function RemindApp() {
   const { user, isPending: authPending } = useCurrentUserState();
-  const storageScope = user?.id ?? "guest";
+  const storageScope = user && !user.isDevFallback ? user.id : "guest";
   const [loadedScope, setLoadedScope] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("remind");
@@ -165,10 +165,10 @@ export function RemindApp() {
   // Existing browser-local items are intentionally not backfilled into whichever
   // account signs in next.
   const canCaptureItem = (ownerId?: string) =>
-    Boolean(!authPending && user?.id && ownerId === user.id);
+    Boolean(!authPending && user && !user.isDevFallback && ownerId === user.id);
 
   const captureActivity = (event: CapturedActivity) => {
-    if (authPending || !user) return;
+    if (authPending || !user || user.isDevFallback) return;
     void activityApiFetch("/api/v1/activity", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -393,7 +393,7 @@ export function RemindApp() {
       completed: false,
       created: Date.now(),
       color: "#ffffff",
-      activityOwnerId: !authPending ? user?.id : undefined,
+      activityOwnerId: !authPending && user && !user.isDevFallback ? user.id : undefined,
     };
     const next = [item, ...reminders];
     setReminders(next);
@@ -426,7 +426,7 @@ export function RemindApp() {
       category: draft.categoryId,
       created: Date.now(),
       color: "#ffffff",
-      activityOwnerId: !authPending ? user?.id : undefined,
+      activityOwnerId: !authPending && user && !user.isDevFallback ? user.id : undefined,
     };
     const next = [item, ...saves];
     setSaves(next);
@@ -468,7 +468,7 @@ export function RemindApp() {
       completed: false,
       created: Date.now(),
       color: "#ffffff",
-      activityOwnerId: !authPending ? user?.id : undefined,
+      activityOwnerId: !authPending && user && !user.isDevFallback ? user.id : undefined,
     };
     const next = [item, ...reminders];
     setReminders(next);
@@ -498,7 +498,7 @@ export function RemindApp() {
       category: category.id,
       created: Date.now(),
       color: "#ffffff",
-      activityOwnerId: !authPending ? user?.id : undefined,
+      activityOwnerId: !authPending && user && !user.isDevFallback ? user.id : undefined,
     };
     const next = [item, ...saves];
     setSaves(next);
