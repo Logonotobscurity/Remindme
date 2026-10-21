@@ -8,6 +8,8 @@ export type Category = {
   custom?: boolean;
 };
 
+export type ReminderStatus = "scheduled" | "overdue" | "parked" | "archived" | "completed";
+
 export type Reminder = {
   id: number;
   text: string;
@@ -18,6 +20,7 @@ export type Reminder = {
   location: string | null;
   notified: boolean;
   completed: boolean;
+  status?: ReminderStatus;
   created: number;
   color: string;
   /** Local-only owner marker for deciding which existing items may emit activity events. */
@@ -117,12 +120,25 @@ function writeJson(key: string, value: unknown) {
 }
 
 export function loadReminders(scope = "guest"): Reminder[] {
-  return readJson<Reminder[]>(keysForScope(scope).reminders, []).map((item) => ({
-    ...item,
-    mediaKind: item.mediaKind ?? inferKind(item.photo),
-    completed: Boolean(item.completed),
-    location: item.location ?? null,
-  }));
+  return readJson<Reminder[]>(keysForScope(scope).reminders, []).map((item) => {
+    const completed = Boolean(item.completed);
+    const storedStatus = item.status;
+    const status: ReminderStatus =
+      completed || storedStatus === "completed"
+        ? "completed"
+        : storedStatus === "parked" || storedStatus === "archived"
+          ? storedStatus
+          : item.time <= Date.now()
+            ? "overdue"
+            : "scheduled";
+    return {
+      ...item,
+      mediaKind: item.mediaKind ?? inferKind(item.photo),
+      completed,
+      status,
+      location: item.location ?? null,
+    };
+  });
 }
 
 export function loadSaves(scope = "guest"): SaveItem[] {
