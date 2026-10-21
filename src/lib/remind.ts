@@ -22,6 +22,8 @@ export type Reminder = {
   color: string;
   /** Local-only owner marker for deciding which existing items may emit activity events. */
   activityOwnerId?: string;
+  graveyarded?: boolean;
+  graveyardedAt?: number;
 };
 
 export type SaveItem = {
@@ -239,7 +241,14 @@ function applyMeridiem(hour: number, mer: string) {
 
 export function parseReminder(inputText: string, photo: string | null, mediaKind: MediaKind | null): ReminderDraft {
   const original = inputText.trim();
-  const text = original.toLowerCase();
+  // Natural language is allowed to be messy: common chat shorthand is normalized
+  // for parsing while the user still sees the original sentence in the preview.
+  const text = original
+    .toLowerCase()
+    .replace(/\b(tmrw|tmr)\b/g, "tomorrow")
+    .replace(/\b(tonite|2nite)\b/g, "tonight")
+    .replace(/\b(eod|end of day)\b/g, "at 5 PM")
+    .replace(/\b(asap|rn)\b/g, "in 1 hour");
   const now = new Date();
   let date = new Date(now);
   let dateLabel = "Today";
@@ -322,7 +331,7 @@ export function parseReminder(inputText: string, photo: string | null, mediaKind
     }
   }
   clean = clean
-    .replace(/\b(besok|lusa|minggu depan|hari ini|nanti|tomorrow|next week|tonight)\b/gi, "")
+    .replace(/\b(besok|lusa|minggu depan|hari ini|nanti|tomorrow|tmrw|tmr|next week|tonight|tonite|2nite|today|eod|end of day|asap|rn)\b/gi, "")
     .replace(/\b(?:jam|pukul|at)\s*\d{1,2}(?:[:.]\d{2})?\s*(am|pm|pagi|siang|sore|malam|malem)?\b/gi, "")
     .replace(/\b\d{1,2}(?::\d{2})?\s*(am|pm)\b/gi, "")
     .replace(/\b(?:dalam|in)\s*\d+\s*(jam|menit|hours?|minutes?|mins?)\b/gi, "")
