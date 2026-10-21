@@ -720,7 +720,7 @@ export function RemindApp() {
     setProfile(null);
     setNameDraft("");
     setShowSettings(false);
-    flash("Everything on this device was cleared");
+    flash("This workspace’s data on this device was cleared");
   };
 
   const filteredReminders = query.trim()
