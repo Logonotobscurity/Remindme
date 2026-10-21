@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { activityApiFetch } from "@/lib/activity/api-client";
 import {
+  Archive,
   Bell,
   Bookmark,
   Calendar,
@@ -16,8 +17,10 @@ import {
   Menu,
   Mic,
   MoonStar,
+  PauseCircle,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   Settings,
   Sparkles,
@@ -59,7 +62,7 @@ import {
 } from "@/lib/remind";
 import { DashboardTab } from "./DashboardTab";
 
-type Tab = "remind" | "save" | "reminder" | "dashboard";
+type Tab = "remind" | "save" | "reminder" | "graveyard" | "dashboard";
 type SpeechCtor = new () => {
   lang: string;
   interimResults: boolean;
@@ -209,7 +212,9 @@ export function RemindApp() {
 
   useEffect(() => {
     if (authPending) return;
-    setReminders(loadReminders(storageScope));
+    const loadedReminders = loadReminders(storageScope);
+    setReminders(loadedReminders);
+    persistReminders(loadedReminders, storageScope);
     setSaves(loadSaves(storageScope));
     setCategories(loadCategories(storageScope));
     const stored = loadProfile(storageScope);
@@ -227,16 +232,24 @@ export function RemindApp() {
       const current = remindersRef.current;
       let changed = false;
       const next = current.map((item) => {
-        if (!item.notified && !item.completed && item.time <= now) {
-          changed = true;
-          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        const inactive = item.status === "parked" || item.status === "archived" || item.completed;
+        if (inactive) return item;
+        if (item.time <= now) {
+          const statusChanged = item.status !== "overdue";
+          const shouldNotify = !item.notified;
+          if (statusChanged || shouldNotify) changed = true;
+          if (shouldNotify && typeof Notification !== "undefined" && Notification.permission === "granted") {
             try {
               new Notification("Re:Mind Me", { body: item.text });
             } catch {
               /* preview may block notifications */
             }
           }
-          return { ...item, notified: true };
+          return statusChanged || shouldNotify ? { ...item, status: "overdue" as const, notified: true } : item;
+        }
+        if (item.status === "overdue") {
+          changed = true;
+          return { ...item, status: "scheduled" as const };
         }
         return item;
       });
@@ -409,6 +422,7 @@ export function RemindApp() {
       location: draft.location.trim() || null,
       notified: false,
       completed: false,
+      status: draft.time <= Date.now() ? "overdue" : "scheduled",
       created: Date.now(),
       color: "#ffffff",
       activityOwnerId: !authPending ? user?.id : undefined,
@@ -484,6 +498,7 @@ export function RemindApp() {
       location: manualLocation.trim() || null,
       notified: false,
       completed: false,
+      status: time <= Date.now() ? "overdue" : "scheduled",
       created: Date.now(),
       color: "#ffffff",
       activityOwnerId: !authPending ? user?.id : undefined,
@@ -602,7 +617,11 @@ export function RemindApp() {
 
   const toggleDone = (id: number) => {
     const current = reminders.find((item) => item.id === id);
-    const next = reminders.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item));
+    const next = reminders.map((item) =>
+      item.id === id
+        ? { ...item, completed: !item.completed, status: item.completed ? (item.time <= Date.now() ? "overdue" as const : "scheduled" as const) : "completed" as const }
+        : item,
+    );
     setReminders(next);
     persistReminders(next, storageScope);
     if (current && canCaptureItem(current.activityOwnerId)) {
@@ -616,6 +635,33 @@ export function RemindApp() {
         sourceReference: "remindme:reminder:" + current.id + ":" + (isCompleting ? "completed:" : "reopened:") + Date.now(),
       });
     }
+  };
+
+  const changeReminderStatus = (id: number, target: "scheduled" | "parked" | "archived") => {
+    const current = reminders.find((item) => item.id === id);
+    if (!current) return;
+    const status = target === "scheduled" && current.time <= Date.now() ? "overdue" : target;
+    const updated = {
+      ...current,
+      completed: false,
+      status,
+      notified: status === "scheduled" ? false : true,
+    };
+    const next = reminders.map((item) => item.id === id ? updated : item);
+    setReminders(next);
+    persistReminders(next, storageScope);
+    if (canCaptureItem(current.activityOwnerId)) {
+      const verb = status === "parked" ? "parked" : status === "archived" ? "archived" : "restored";
+      captureActivity({
+        title: "Reminder " + verb + ": " + current.text,
+        summary: current.timeLabel,
+        category: "Reminder",
+        activityType: "reminder",
+        completionStatus: status === "archived" ? "archived" : "in_progress",
+        sourceReference: "remindme:reminder:" + current.id + ":" + verb + ":" + Date.now(),
+      });
+    }
+    flash(status === "parked" ? "Reminder parked" : status === "archived" ? "Moved to the Graveyard" : "Reminder brought back");
   };
 
   const beginEdit = (item: Reminder | SaveItem, type: "reminder" | "save") => {
@@ -648,6 +694,13 @@ export function RemindApp() {
               timeLabel: Number.isNaN(time) ? item.timeLabel : formatTimeLabel(time),
               color: editForm.color,
               notified: Number.isNaN(time) ? item.notified : time > Date.now() ? false : item.notified,
+              status: item.completed
+                ? "completed" as const
+                : Number.isNaN(time)
+                  ? item.status
+                  : time > Date.now()
+                    ? "scheduled" as const
+                    : "overdue" as const,
             }
           : item,
       );
@@ -749,6 +802,11 @@ export function RemindApp() {
     : saves;
   const categoryItems =
     selectedCategory && selectedCategory !== "manual" ? saves.filter((item) => item.category === selectedCategory) : saves;
+  const activeReminders = reminders.filter((item) => item.status !== "parked" && item.status !== "archived" && item.status !== "overdue");
+  const graveyardReminders = reminders.filter((item) =>
+    item.status === "parked" || item.status === "archived" ||
+    (!item.completed && (item.status === "overdue" || item.time <= Date.now())),
+  );
 
   const canCompose = Boolean(input.trim() || photo || video);
 
@@ -809,6 +867,38 @@ export function RemindApp() {
       <main className="relative flex-1 overflow-y-auto pb-28">
         {tab === "dashboard" ? (
           <DashboardTab />
+        ) : tab === "graveyard" ? (
+          <section className="anim-fade space-y-4 p-5 list-lane">
+            <div className="graveyard-hero rounded-3xl border p-5">
+              <div className="mb-3 flex size-11 items-center justify-center rounded-2xl bg-brand/15 text-brand"><Archive size={22} /></div>
+              <p className="capture-eyebrow">No promise disappears</p>
+              <h1 className="capture-heading text-3xl">The Graveyard</h1>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-mute">Overdue, parked and archived reminders live here. Nothing gets erased just because a day got away from you.</p>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                <span className="graveyard-count">{graveyardReminders.filter((item) => !item.completed && item.time <= Date.now() && item.status !== "parked" && item.status !== "archived").length} overdue</span>
+                <span className="graveyard-count">{graveyardReminders.filter((item) => item.status === "parked").length} parked</span>
+                <span className="graveyard-count">{graveyardReminders.filter((item) => item.status === "archived").length} archived</span>
+              </div>
+            </div>
+            {graveyardReminders.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-line p-10 text-center"><Sparkles className="mx-auto mb-3 text-moss" size={26} /><p className="font-semibold">A clean slate, for now.</p><p className="mt-1 text-sm text-mute">When a reminder slips, you can find it here without the guilt trip.</p></div>
+            ) : (
+              <div className="space-y-3">
+                {graveyardReminders.map((item) => {
+                  const label = item.status === "archived" ? "Archived" : item.status === "parked" ? "Parked" : item.completed ? "Completed" : "Overdue";
+                  return (
+                    <article key={item.id} className="graveyard-item flex flex-col gap-3 rounded-2xl border border-line p-4 sm:flex-row sm:items-center" style={{ backgroundColor: item.color === "#ffffff" ? "var(--color-surface)" : item.color }}>
+                      <div className="min-w-0 flex-1"><div className="mb-2 flex flex-wrap items-center gap-2"><span className="graveyard-status">{label}</span><span className="text-xs text-mute">{item.timeLabel}</span></div><p className={item.completed ? "font-medium line-through opacity-60" : "font-medium"}>{item.text}</p>{item.location && <p className="mt-1 text-xs text-mute">{item.location}</p>}</div>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => changeReminderStatus(item.id, "scheduled")} className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-moss px-3 text-sm font-semibold text-white"><RotateCcw size={15} /> Bring back</button>
+                        <button type="button" onClick={() => removeItem(item.id, "reminder")} className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-line px-3 text-sm font-semibold"><Trash2 size={15} /> Delete</button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         ) : tab === "remind" ? (
           <section className="anim-fade space-y-5 p-5 capture-lane">
             <div className="capture-hero pt-3 pb-2 text-center">
@@ -1023,18 +1113,18 @@ export function RemindApp() {
               <h2 className="text-xl font-bold">My reminders</h2>
               <ViewToggle value={listView} onChange={setListView} />
             </div>
-            {reminders.length === 0 ? (
+            {activeReminders.length === 0 ? (
               <EmptyBell onCreate={() => setTab("remind")} />
             ) : listView === "list" ? (
               <div className="space-y-3">
-                {reminders.map((item) => (
-                  <ReminderRow key={item.id} item={item} onDone={() => toggleDone(item.id)} onEdit={() => beginEdit(item, "reminder")} onDelete={() => removeItem(item.id, "reminder")} />
+                {activeReminders.map((item) => (
+                  <ReminderRow key={item.id} item={item} onDone={() => toggleDone(item.id)} onEdit={() => beginEdit(item, "reminder")} onDelete={() => removeItem(item.id, "reminder")} onPark={() => changeReminderStatus(item.id, "parked")} onArchive={() => changeReminderStatus(item.id, "archived")} />
                 ))}
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                {reminders.map((item) => (
-                  <ReminderCard key={item.id} item={item} onDone={() => toggleDone(item.id)} onEdit={() => beginEdit(item, "reminder")} onDelete={() => removeItem(item.id, "reminder")} />
+                {activeReminders.map((item) => (
+                  <ReminderCard key={item.id} item={item} onDone={() => toggleDone(item.id)} onEdit={() => beginEdit(item, "reminder")} onDelete={() => removeItem(item.id, "reminder")} onPark={() => changeReminderStatus(item.id, "parked")} onArchive={() => changeReminderStatus(item.id, "archived")} />
                 ))}
               </div>
             )}
@@ -1392,10 +1482,11 @@ export function RemindApp() {
 
       <nav className="absolute right-4 bottom-4 left-4 z-30">
         <div className="flex rounded-2xl border border-line bg-white/95 p-1.5 shadow-lg shadow-slate-300/50 backdrop-blur">
-          <NavButton active={tab === "reminder"} onClick={() => switchTab("reminder")} icon={<Bell size={18} fill={tab === "reminder" ? "currentColor" : "none"} />} label="List" />
-          <NavButton active={tab === "remind"} onClick={() => switchTab("remind")} icon={<Plus size={18} />} label="Remind" />
-          <NavButton active={tab === "save"} onClick={() => switchTab("save")} icon={<Bookmark size={18} fill={tab === "save" ? "currentColor" : "none"} />} label="Save" />
-          <NavButton active={tab === "dashboard"} onClick={() => switchTab("dashboard")} icon={<LayoutGrid size={18} />} label="Dashboard" />
+          <NavButton active={tab === "reminder"} onClick={() => switchTab("reminder")} icon={<Bell size={17} fill={tab === "reminder" ? "currentColor" : "none"} />} label="List" />
+          <NavButton active={tab === "remind"} onClick={() => switchTab("remind")} icon={<Plus size={17} />} label="Remind" />
+          <NavButton active={tab === "graveyard"} onClick={() => switchTab("graveyard")} icon={<Archive size={17} />} label="Graveyard" />
+          <NavButton active={tab === "save"} onClick={() => switchTab("save")} icon={<Bookmark size={17} fill={tab === "save" ? "currentColor" : "none"} />} label="Save" />
+          <NavButton active={tab === "dashboard"} onClick={() => switchTab("dashboard")} icon={<LayoutGrid size={17} />} label="Memory" />
         </div>
       </nav>
     </div>
@@ -1592,7 +1683,7 @@ function SaveRow({ item, onEdit, onDelete }: { item: SaveItem; onEdit: () => voi
   );
 }
 
-function ReminderRow({ item, onDone, onEdit, onDelete }: { item: Reminder; onDone: () => void; onEdit: () => void; onDelete: () => void }) {
+function ReminderRow({ item, onDone, onEdit, onDelete, onPark, onArchive }: { item: Reminder; onDone: () => void; onEdit: () => void; onDelete: () => void; onPark: () => void; onArchive: () => void }) {
   return (
     <article className={`flex gap-3 rounded-2xl border border-line p-4 ${item.completed ? "opacity-60" : ""}`} style={{ backgroundColor: item.color === "#ffffff" ? "#fff" : item.color }}>
       {item.photo && <MediaThumb src={item.photo} kind={item.mediaKind} className="size-14 shrink-0 rounded-xl object-cover" />}
@@ -1616,13 +1707,15 @@ function ReminderRow({ item, onDone, onEdit, onDelete }: { item: Reminder; onDon
           <Check size={16} />
         </button>
         <IconBtn label="Edit" onClick={onEdit}><Pencil size={14} /></IconBtn>
+        <IconBtn label="Park reminder" onClick={onPark}><PauseCircle size={14} /></IconBtn>
+        <IconBtn label="Archive reminder" onClick={onArchive}><Archive size={14} /></IconBtn>
         <IconBtn label="Delete" onClick={onDelete}><Trash2 size={14} /></IconBtn>
       </div>
     </article>
   );
 }
 
-function ReminderCard({ item, onDone, onEdit, onDelete }: { item: Reminder; onDone: () => void; onEdit: () => void; onDelete: () => void }) {
+function ReminderCard({ item, onDone, onEdit, onDelete, onPark, onArchive }: { item: Reminder; onDone: () => void; onEdit: () => void; onDelete: () => void; onPark: () => void; onArchive: () => void }) {
   return (
     <article className={`overflow-hidden rounded-2xl border border-line ${item.completed ? "opacity-60" : ""}`} style={{ backgroundColor: item.color === "#ffffff" ? "#fff" : item.color }}>
       {item.photo && <MediaThumb src={item.photo} kind={item.mediaKind} className="h-24 w-full object-cover" />}
@@ -1639,6 +1732,8 @@ function ReminderCard({ item, onDone, onEdit, onDelete }: { item: Reminder; onDo
         </p>
         <div className="mt-2 flex gap-1 border-t border-line pt-2">
           <IconBtn label="Edit" onClick={onEdit}><Pencil size={12} /></IconBtn>
+          <IconBtn label="Park reminder" onClick={onPark}><PauseCircle size={12} /></IconBtn>
+          <IconBtn label="Archive reminder" onClick={onArchive}><Archive size={12} /></IconBtn>
           <IconBtn label="Delete" onClick={onDelete}><Trash2 size={12} /></IconBtn>
         </div>
       </div>
@@ -1749,7 +1844,7 @@ function SearchGroup({
 
 function NavButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: ReactNode; label: string }) {
   return (
-    <button type="button" onClick={onClick} className={`flex h-12 flex-1 items-center justify-center gap-2 rounded-xl text-xs font-semibold ${active ? "bg-brand text-white" : "text-mute"}`}>
+    <button type="button" onClick={onClick} className={`flex h-12 flex-1 items-center justify-center gap-1 rounded-xl text-[10px] font-semibold sm:gap-2 sm:text-xs ${active ? "bg-brand text-white" : "text-mute"}`}>
       {icon}
       {label}
     </button>

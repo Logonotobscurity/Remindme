@@ -355,3 +355,50 @@
   .capture-input,
   .commit-button { transition: none !important; }
 }
+
+
+/* Reminder lifecycle and Graveyard */
+.graveyard-hero {
+  border-color: rgb(155 120 232 / 24%);
+  background:
+    radial-gradient(ellipse at 92% 4%, rgb(155 120 232 / 13%), transparent 42%),
+    linear-gradient(135deg, rgb(26 92 72 / 5%), transparent 62%),
+    var(--color-surface);
+}
+.graveyard-count,
+.graveyard-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 27px;
+  padding: .25rem .65rem;
+  border: 1px solid rgb(20 20 18 / 10%);
+  border-radius: 999px;
+  background: rgb(155 120 232 / 10%);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.graveyard-status { font-size: .68rem; }
+.graveyard-item {
+  box-shadow: 0 8px 22px rgb(20 20 18 / 4%);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+.graveyard-item:hover {
+  border-color: rgb(155 120 232 / 42%);
+  box-shadow: 0 12px 30px rgb(20 20 18 / 7%);
+}
+.is-slumber .graveyard-hero {
+  border-color: rgb(180 154 240 / 25%);
+  background:
+    radial-gradient(ellipse at 92% 4%, rgb(180 154 240 / 12%), transparent 42%),
+    linear-gradient(135deg, rgb(130 180 154 / 7%), transparent 62%),
+    var(--color-surface);
+}
+.is-slumber .graveyard-count,
+.is-slumber .graveyard-status {
+  border-color: #41413B;
+  background: rgb(180 154 240 / 12%);
+  color: #F5EDD4;
+}
+@media (prefers-reduced-motion: reduce) {
+  .graveyard-item { transition: none !important; }
+}
