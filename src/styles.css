@@ -75,3 +75,717 @@
     animation: none;
   }
 }
+
+
+/* Thought Studio redesign — tactile, editorial, and time-aware */
+.remind-app {
+  --studio-bg: #f7f1e6;
+  --studio-panel: rgba(255, 253, 248, 0.88);
+  --studio-ink: #211f21;
+  --studio-muted: #77716f;
+  --studio-line: rgba(35, 29, 37, 0.12);
+  --studio-purple: #9b78e8;
+  --studio-teal: #1a5c48;
+  --studio-ember: #e9a06d;
+  position: relative;
+  isolation: isolate;
+  color: var(--studio-ink);
+  background:
+    radial-gradient(ellipse at 16% 9%, rgba(235, 219, 255, 0.75), transparent 38%),
+    radial-gradient(ellipse at 86% 74%, rgba(199, 228, 211, 0.5), transparent 34%),
+    var(--studio-bg);
+  font-family: var(--font-sans);
+  transition: background 900ms ease, color 700ms ease, filter 700ms ease;
+}
+
+.remind-app.daylight-mode {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --studio-bg: #f7f1e6;
+  --studio-panel: rgba(255, 253, 248, 0.88);
+  --studio-ink: #211f21;
+  --studio-muted: #77716f;
+  --studio-line: rgba(35, 29, 37, 0.12);
+  --studio-purple: #8c68dc;
+}
+
+.remind-app.slumber-mode {
+  --font-sans: "Nunito", ui-rounded, system-ui, sans-serif;
+  --studio-bg: #13121b;
+  --studio-panel: rgba(29, 27, 41, 0.82);
+  --studio-ink: #f3eee7;
+  --studio-muted: #aba4b8;
+  --studio-line: rgba(238, 227, 255, 0.13);
+  --studio-purple: #b79aff;
+  background:
+    radial-gradient(ellipse at 50% 10%, rgba(94, 63, 139, 0.32), transparent 43%),
+    radial-gradient(ellipse at 85% 83%, rgba(28, 93, 76, 0.2), transparent 34%),
+    var(--studio-bg);
+}
+
+.remind-app .studio-header {
+  background: color-mix(in srgb, var(--studio-panel) 86%, transparent);
+  border-color: var(--studio-line);
+  color: var(--studio-ink);
+  backdrop-filter: blur(22px);
+}
+
+.remind-app .studio-header button {
+  color: var(--studio-ink);
+}
+
+.remind-app .studio-logo {
+  background: linear-gradient(135deg, #9b78e8, #5b3a9a 70%, #1a5c48);
+  box-shadow: 0 6px 18px rgba(111, 75, 170, 0.24);
+}
+
+.remind-app .thought-studio {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+  padding: clamp(1.35rem, 3.8vw, 3rem);
+}
+
+.remind-app .studio-kicker,
+.remind-app .studio-micro-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+  color: var(--studio-muted);
+}
+
+.remind-app .studio-headline {
+  margin-top: 0.8rem;
+  font-size: clamp(2rem, 4.2vw, 3.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.065em;
+  font-weight: 700;
+}
+
+.remind-app .studio-headline em {
+  color: var(--studio-purple);
+  font-family: "Nunito", ui-rounded, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.07em;
+}
+
+.remind-app .studio-copy {
+  max-width: 35rem;
+  margin-top: 1rem;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: var(--studio-muted);
+}
+
+.remind-app .studio-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(245px, 0.75fr);
+  gap: clamp(1rem, 3vw, 2rem);
+  align-items: start;
+  margin-top: 1.3rem;
+}
+
+.remind-app .studio-main {
+  min-width: 0;
+}
+
+.remind-app .orb-stage {
+  position: relative;
+  display: grid;
+  min-height: 245px;
+  place-items: center;
+  overflow: visible;
+  isolation: isolate;
+}
+
+.remind-app .orb-aura {
+  position: absolute;
+  width: clamp(180px, 27vw, 238px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(155, 120, 232, 0.2) 0%, rgba(155, 120, 232, 0.09) 45%, transparent 72%);
+  filter: blur(8px);
+  transform: scale(0.94);
+  animation: aura-breathe 4.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.remind-app .thinking-orb {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: clamp(142px, 21vw, 182px);
+  aspect-ratio: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 44% 56% 51% 49% / 49% 43% 57% 51%;
+  color: white;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255, 255, 255, 0.64), transparent 17%),
+    radial-gradient(circle at 65% 78%, rgba(37, 129, 104, 0.56), transparent 38%),
+    radial-gradient(circle at 42% 35%, #b49af3 0%, #855cce 34%, #49346e 65%, #1c3142 100%);
+  box-shadow:
+    inset -12px -18px 30px rgba(14, 10, 30, 0.34),
+    inset 8px 8px 20px rgba(255, 255, 255, 0.28),
+    0 0 0 9px rgba(155, 120, 232, 0.08),
+    0 0 0 23px rgba(155, 120, 232, 0.045),
+    0 25px 60px rgba(81, 50, 123, 0.24);
+  cursor: pointer;
+  transform: translateZ(0);
+  transition: border-radius 650ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 350ms ease, box-shadow 600ms ease;
+  animation: orb-float 5.8s ease-in-out infinite;
+}
+
+.remind-app .thinking-orb::before,
+.remind-app .thinking-orb::after {
+  position: absolute;
+  content: "";
+  inset: -16px;
+  border: 1px solid rgba(155, 120, 232, 0.38);
+  border-radius: 50%;
+  transform: rotate(-22deg) scaleY(0.36);
+  pointer-events: none;
+}
+
+.remind-app .thinking-orb::after {
+  inset: -23px;
+  border-color: rgba(26, 92, 72, 0.22);
+  transform: rotate(28deg) scaleY(0.62);
+}
+
+.remind-app .thinking-orb:hover {
+  transform: scale(1.035) translateY(-2px);
+  box-shadow:
+    inset -12px -18px 30px rgba(14, 10, 30, 0.34),
+    inset 8px 8px 20px rgba(255, 255, 255, 0.28),
+    0 0 0 9px rgba(155, 120, 232, 0.12),
+    0 0 0 26px rgba(155, 120, 232, 0.065),
+    0 30px 75px rgba(81, 50, 123, 0.34);
+}
+
+.remind-app .thinking-orb.is-thinking {
+  animation: orb-think 1s ease-in-out infinite alternate;
+  border-radius: 51% 49% 37% 63% / 55% 37% 63% 45%;
+}
+
+.remind-app .thinking-orb.has-thought {
+  box-shadow:
+    inset -12px -18px 30px rgba(14, 10, 30, 0.34),
+    inset 8px 8px 20px rgba(255, 255, 255, 0.28),
+    0 0 0 9px rgba(155, 120, 232, 0.16),
+    0 0 0 23px rgba(155, 120, 232, 0.08),
+    0 0 72px rgba(233, 160, 109, 0.22);
+}
+
+.remind-app .orb-status {
+  font-size: 0.57rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.remind-app .orb-caption {
+  max-width: 8rem;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.remind-app .prompt-card {
+  position: relative;
+  z-index: 3;
+  margin: -0.35rem auto 0;
+  max-width: 680px;
+  padding: 1rem;
+  border: 1px solid var(--studio-line);
+  border-radius: 1.65rem;
+  background: var(--studio-panel);
+  box-shadow: 0 20px 55px rgba(55, 40, 70, 0.09), inset 0 1px rgba(255,255,255,0.66);
+  backdrop-filter: blur(24px);
+  transition: border-color 350ms ease, box-shadow 350ms ease, transform 350ms ease;
+}
+
+.remind-app .prompt-card:focus-within {
+  border-color: rgba(155, 120, 232, 0.68);
+  box-shadow: 0 24px 64px rgba(90, 62, 133, 0.15), 0 0 0 4px rgba(155, 120, 232, 0.08);
+  transform: translateY(-2px);
+}
+
+.remind-app .prompt-input {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  border: 0;
+  padding: 0.25rem 0.2rem 0.6rem;
+  color: var(--studio-ink);
+  background: transparent;
+  outline: none;
+  font-size: clamp(1rem, 1.7vw, 1.2rem);
+  line-height: 1.6;
+  letter-spacing: -0.02em;
+}
+
+.remind-app .prompt-input::placeholder {
+  color: var(--studio-muted);
+  opacity: 0.82;
+}
+
+.remind-app .prompt-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  border-top: 1px solid var(--studio-line);
+  padding-top: 0.75rem;
+}
+
+.remind-app .prompt-tool {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  border-radius: 999px;
+  padding: 0.55rem 0.8rem;
+  background: color-mix(in srgb, var(--studio-ink) 6%, transparent);
+  color: var(--studio-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  transition: transform 180ms ease, background 200ms ease, color 200ms ease;
+}
+
+.remind-app .prompt-tool:hover {
+  color: var(--studio-ink);
+  background: color-mix(in srgb, var(--studio-purple) 16%, transparent);
+  transform: translateY(-1px);
+}
+
+.remind-app .studio-primary {
+  display: inline-flex;
+  min-height: 43px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.75rem 1.15rem;
+  color: #fff;
+  background: linear-gradient(110deg, #7952c8, #926ee4 58%, #1a5c48);
+  box-shadow: 0 9px 25px rgba(126, 85, 197, 0.24);
+  font-size: 0.82rem;
+  font-weight: 800;
+  transition: transform 180ms ease, box-shadow 250ms ease, opacity 180ms ease;
+}
+
+.remind-app .studio-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(126, 85, 197, 0.34);
+}
+
+.remind-app .studio-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  box-shadow: none;
+}
+
+.remind-app .studio-quickstarts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem;
+  margin: 1rem auto 0;
+  max-width: 640px;
+}
+
+.remind-app .magnet-chip {
+  position: relative;
+  border: 1px solid var(--studio-line);
+  border-radius: 999px;
+  padding: 0.62rem 0.9rem;
+  color: var(--studio-ink);
+  background: color-mix(in srgb, var(--studio-panel) 94%, transparent);
+  box-shadow: 0 5px 16px rgba(35, 29, 37, 0.045);
+  font-size: 0.74rem;
+  font-weight: 750;
+  transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+  will-change: transform;
+}
+
+.remind-app .magnet-chip:hover {
+  transform: translateY(-3px) scale(1.025);
+  border-color: rgba(155, 120, 232, 0.55);
+  box-shadow: 0 9px 22px rgba(77, 49, 112, 0.12);
+}
+
+.remind-app .magnet-chip--flying {
+  z-index: 10;
+  pointer-events: none;
+  animation: magnet-to-orb 680ms cubic-bezier(0.18, 0.72, 0.16, 1) forwards;
+}
+
+.remind-app .studio-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.remind-app .rail-card {
+  border: 1px solid var(--studio-line);
+  border-radius: 1.4rem;
+  padding: 1.05rem;
+  background: var(--studio-panel);
+  box-shadow: 0 14px 32px rgba(55, 40, 70, 0.055);
+  text-align: left;
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+  backdrop-filter: blur(18px);
+}
+
+.remind-app button.rail-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(155, 120, 232, 0.44);
+  box-shadow: 0 18px 38px rgba(55, 40, 70, 0.1);
+}
+
+.remind-app .rail-card--ritual {
+  background:
+    radial-gradient(circle at 90% 6%, rgba(155, 120, 232, 0.18), transparent 46%),
+    var(--studio-panel);
+}
+
+.remind-app .rail-number {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.07em;
+}
+
+.remind-app .rail-label {
+  margin-top: 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--studio-muted);
+}
+
+.remind-app .attachment-popover {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+  padding: 0.75rem;
+  border: 1px solid var(--studio-line);
+  border-radius: 1.2rem;
+  background: var(--studio-panel);
+  box-shadow: 0 14px 32px rgba(55, 40, 70, 0.08);
+  animation: slide-up 230ms ease-out;
+}
+
+.remind-app .attachment-choice {
+  display: flex;
+  min-height: 70px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--studio-ink) 5%, transparent);
+  color: var(--studio-ink);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.remind-app .attachment-choice:hover {
+  background: color-mix(in srgb, var(--studio-purple) 17%, transparent);
+}
+
+.remind-app .studio-secondary {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  padding: 0.65rem 0.9rem;
+  color: var(--studio-muted);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.remind-app .studio-secondary:hover {
+  color: var(--studio-ink);
+  background: color-mix(in srgb, var(--studio-ink) 5%, transparent);
+}
+
+.remind-app .slumber-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  border: 1px solid var(--studio-line);
+  border-radius: 999px;
+  padding: 0.45rem 0.7rem;
+  color: var(--studio-muted);
+  background: color-mix(in srgb, var(--studio-panel) 85%, transparent);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.remind-app .reminder-row {
+  transition: background 700ms ease, border-color 350ms ease, box-shadow 350ms ease, opacity 350ms ease;
+}
+
+.remind-app .reminder-row.is-overdue {
+  border-color: rgba(190, 76, 111, 0.4);
+  color: #36212c;
+  background: linear-gradient(118deg, #f0d7e0, #d9cfed 72%, #e6d4d6) !important;
+  box-shadow: inset 3px 0 0 rgba(160, 51, 87, 0.68), 0 12px 28px rgba(120, 49, 93, 0.08);
+  animation: overdue-twitch 7s ease-in-out infinite;
+}
+
+.remind-app .reminder-row.is-overdue .overdue-stamp {
+  display: inline-flex;
+}
+
+.remind-app .overdue-stamp {
+  display: none;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  background: rgba(132, 36, 77, 0.1);
+  color: #8e3154;
+  padding: 0.23rem 0.5rem;
+  font-size: 0.61rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.remind-app .hold-snooze {
+  position: relative;
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 0.7rem;
+  padding: 0.45rem 0.65rem;
+  color: #762f55;
+  background: rgba(132, 36, 77, 0.08);
+  font-size: 0.66rem;
+  font-weight: 850;
+  touch-action: none;
+  user-select: none;
+}
+
+.remind-app .hold-snooze__progress {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgba(155, 120, 232, 0.26);
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+}
+
+.remind-app .hold-snooze__label {
+  position: relative;
+  z-index: 1;
+}
+
+.remind-app .graveyard-card {
+  border: 1px solid rgba(146, 91, 132, 0.28);
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+  color: var(--studio-muted);
+  background: color-mix(in srgb, #9d5b80 9%, var(--studio-panel));
+  filter: saturate(0.65);
+}
+
+.remind-app .wrath-overlay {
+  background: rgba(20, 12, 27, 0.66);
+  backdrop-filter: blur(14px);
+}
+
+.remind-app .wrath-dialog,
+.remind-app .awakening-dialog {
+  width: min(100%, 440px);
+  border: 1px solid var(--studio-line);
+  border-radius: 1.8rem;
+  padding: 1.5rem;
+  color: var(--studio-ink);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(155, 120, 232, 0.17), transparent 42%),
+    var(--studio-panel);
+  box-shadow: 0 30px 110px rgba(10, 7, 20, 0.38);
+  backdrop-filter: blur(24px);
+}
+
+.remind-app .wrath-primary {
+  border-radius: 999px;
+  padding: 0.85rem 1rem;
+  color: white;
+  background: linear-gradient(110deg, #a33e6c, #7040a0);
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.remind-app .wrath-secondary {
+  border: 1px solid var(--studio-line);
+  border-radius: 999px;
+  padding: 0.85rem 1rem;
+  color: var(--studio-ink);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.remind-app .awakening-dialog {
+  box-shadow: 0 30px 100px rgba(233, 160, 109, 0.18), 0 30px 110px rgba(10, 7, 20, 0.38);
+}
+
+.remind-app.slumber-mode .nonessential-ui {
+  opacity: 0.68;
+  filter: blur(0.25px);
+  transform: translateY(2px);
+}
+
+.remind-app.slumber-mode .reminder-row:not(.is-overdue) {
+  border-color: rgba(233, 160, 109, 0.25);
+  background: linear-gradient(115deg, rgba(233, 160, 109, 0.095), rgba(155, 120, 232, 0.06)) !important;
+  box-shadow: 0 0 24px rgba(233, 160, 109, 0.055);
+}
+
+.remind-app.slumber-mode .reminder-row:not(.is-overdue) .bg-slate-100,
+.remind-app.slumber-mode .reminder-row:not(.is-overdue) .bg-sky-50 {
+  background: rgba(233, 160, 109, 0.12) !important;
+}
+
+.remind-app.slumber-mode .reminder-row:not(.is-overdue) .text-slate-600,
+.remind-app.slumber-mode .reminder-row:not(.is-overdue) .text-slate-500 {
+  color: #c3b9ce !important;
+}
+
+.remind-app.slumber-mode .bg-white,
+.remind-app.slumber-mode .bg-white\/85,
+.remind-app.slumber-mode .bg-slate-50,
+.remind-app.slumber-mode .bg-slate-100 {
+  background-color: #211f2e !important;
+  color: #f3eee7;
+}
+
+.remind-app.slumber-mode .border-line,
+.remind-app.slumber-mode .border-slate-200 {
+  border-color: var(--studio-line) !important;
+}
+
+.remind-app.slumber-mode .text-ink,
+.remind-app.slumber-mode .text-slate-900,
+.remind-app.slumber-mode .text-slate-800,
+.remind-app.slumber-mode .text-slate-700 {
+  color: var(--studio-ink) !important;
+}
+
+.remind-app.slumber-mode .text-mute,
+.remind-app.slumber-mode .text-slate-600,
+.remind-app.slumber-mode .text-slate-500 {
+  color: var(--studio-muted) !important;
+}
+
+.remind-app.slumber-mode input,
+.remind-app.slumber-mode textarea,
+.remind-app.slumber-mode select {
+  color: var(--studio-ink);
+  background-color: rgba(21, 20, 32, 0.85);
+  border-color: var(--studio-line);
+}
+
+.remind-app .studio-footer-nav {
+  background: color-mix(in srgb, var(--studio-panel) 94%, transparent);
+  border-color: var(--studio-line);
+  box-shadow: 0 15px 42px rgba(45, 30, 70, 0.14);
+  backdrop-filter: blur(28px);
+}
+
+.remind-app.slumber-mode .studio-footer-nav {
+  box-shadow: 0 15px 44px rgba(0, 0, 0, 0.35);
+}
+
+.remind-app.shake-screen {
+  animation: screen-shake 360ms ease-in-out;
+}
+
+@keyframes aura-breathe {
+  0%, 100% { opacity: 0.62; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+@keyframes orb-float {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-7px) rotate(2deg); }
+}
+
+@keyframes orb-think {
+  from { filter: hue-rotate(0deg) brightness(1); transform: scale(0.98) rotate(-3deg); }
+  to { filter: hue-rotate(22deg) brightness(1.15); transform: scale(1.035) rotate(3deg); }
+}
+
+@keyframes magnet-to-orb {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  22% { transform: translateY(-3px) scaleX(1.18) scaleY(0.82); }
+  48% { transform: translateY(-36px) scaleX(0.88) scaleY(1.12) rotate(-3deg); }
+  100% { transform: translateY(-150px) scale(0.08) rotate(18deg); opacity: 0; }
+}
+
+@keyframes overdue-twitch {
+  0%, 93%, 100% { transform: translateX(0) rotate(0); }
+  94% { transform: translateX(-1px) rotate(-0.1deg); }
+  96% { transform: translateX(1px) rotate(0.1deg); }
+  98% { transform: translateX(-0.5px); }
+}
+
+@keyframes screen-shake {
+  0%, 100% { transform: translateX(0); }
+  22% { transform: translateX(-3px); }
+  45% { transform: translateX(3px); }
+  68% { transform: translateX(-2px); }
+}
+
+@media (max-width: 760px) {
+  .remind-app .thought-studio { padding: 1.4rem 1rem 2rem; }
+  .remind-app .studio-layout { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .remind-app .studio-headline { font-size: clamp(2.15rem, 11vw, 3.2rem); }
+  .remind-app .orb-stage { min-height: 210px; }
+  .remind-app .studio-rail { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .remind-app .rail-card { border-radius: 1rem; padding: 0.75rem; }
+  .remind-app .rail-card--ritual { grid-column: 1 / -1; }
+  .remind-app .rail-number { font-size: 1.25rem; }
+  .remind-app .rail-label { font-size: 0.58rem; letter-spacing: 0.04em; }
+  .remind-app .rail-detail { display: none; }
+  .remind-app .studio-copy { font-size: 0.85rem; }
+  .remind-app .prompt-footer { align-items: flex-start; }
+  .remind-app .studio-primary { width: 100%; }
+}
+
+@media (max-width: 420px) {
+  .remind-app .studio-rail { gap: 0.5rem; }
+  .remind-app .rail-card { padding: 0.65rem; }
+  .remind-app .rail-label { overflow-wrap: anywhere; }
+  .remind-app .prompt-tool { padding: 0.5rem 0.65rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .remind-app .orb-aura,
+  .remind-app .thinking-orb,
+  .remind-app .magnet-chip--flying,
+  .remind-app .reminder-row.is-overdue,
+  .remind-app.shake-screen {
+    animation: none !important;
+  }
+  .remind-app * { scroll-behavior: auto !important; }
+}
