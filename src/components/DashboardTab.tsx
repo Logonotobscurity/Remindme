@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Bell,
@@ -24,7 +24,37 @@ type DashboardItem = {
   location?: string;
 };
 
-const mockDashboard: DashboardItem[] = [
+type ActivityRecord = {
+  id?: number;
+  source?: string | null;
+  project_name?: string | null;
+  category?: string | null;
+  title?: string | null;
+  summary?: string | null;
+  activity_type?: string | null;
+  completion_status?: string | null;
+  occurred_at?: string | null;
+  created_at?: string | null;
+};
+
+type ActionItemRecord = {
+  id?: number;
+  title?: string | null;
+  summary?: string | null;
+  status?: string | null;
+  due_at?: string | null;
+  created_at?: string | null;
+};
+
+type ReminderRecord = {
+  id?: number;
+  title?: string | null;
+  due_at?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+};
+
+const fallbackDashboard: DashboardItem[] = [
   {
     id: 1,
     title: "LOG_ON architecture review",
@@ -60,19 +90,145 @@ const mockDashboard: DashboardItem[] = [
 const tabs = [
   { id: "reminders", label: "Reminders", icon: Bell },
   { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
-];
+] as const;
+
+function formatDisplayTime(value?: string | null) {
+  if (!value) return "Today";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Today";
+
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  if (isToday) return `Today • ${time}`;
+  return `${date.toLocaleDateString([], { month: "short", day: "numeric" })} • ${time}`;
+}
+
+function toDashboardItemFromActivity(record: ActivityRecord, index: number): DashboardItem {
+  const status = record.completion_status === "completed"
+    ? "completed"
+    : record.completion_status === "in_progress" || record.completion_status === "pending"
+      ? "pending"
+      : "recorded";
+
+  return {
+    id: record.id ?? index + 1,
+    title: record.title ?? "Untitled activity",
+    summary:
+      record.summary ??
+      `Captured from ${record.source ?? "system"}${record.project_name ? ` in ${record.project_name}` : ""}.`,
+    source: (record.source ?? "system").toString().charAt(0).toUpperCase() + (record.source ?? "system").toString().slice(1),
+    category: record.category ?? record.activity_type ?? "General",
+    status,
+    time: formatDisplayTime(record.occurred_at ?? record.created_at),
+    location: record.project_name ?? undefined,
+  };
+}
+
+function toDashboardItemFromAction(record: ActionItemRecord, index: number): DashboardItem {
+  return {
+    id: record.id ?? index + 1000,
+    title: record.title ?? "Action item",
+    summary: record.summary ?? "Pending follow-up from the current activity log.",
+    source: "Action",
+    category: "Task",
+    status: record.status === "completed" ? "completed" : "pending",
+    time: formatDisplayTime(record.due_at ?? record.created_at),
+    location: undefined,
+  };
+}
+
+function toDashboardItemFromReminder(record: ReminderRecord, index: number): DashboardItem {
+  return {
+    id: record.id ?? index + 2000,
+    title: record.title ?? "Reminder",
+    summary: "Scheduled reminder due from the central activity system.",
+    source: "Reminder",
+    category: "Follow-up",
+    status: record.status === "completed" ? "completed" : "pending",
+    time: formatDisplayTime(record.due_at ?? record.created_at),
+    location: undefined,
+  };
+}
+
+function buildDashboardData(
+  activities: ActivityRecord[] = [],
+  actions: ActionItemRecord[] = [],
+  reminders: ReminderRecord[] = [],
+): DashboardItem[] {
+  const items = [
+    ...activities.map((record, index) => toDashboardItemFromActivity(record, index)),
+    ...actions.map((record, index) => toDashboardItemFromAction(record, index)),
+    ...reminders.map((record, index) => toDashboardItemFromReminder(record, index)),
+  ];
+
+  return items.slice(0, 10);
+}
 
 export function DashboardTab() {
   const [activeTab, setActiveTab] = useState<"reminders" | "dashboard">("dashboard");
+  const [items, setItems] = useState<DashboardItem[]>(fallbackDashboard);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadDashboard() {
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+        const [activityRes, actionRes, reminderRes] = await Promise.all([
+          fetch(`/api/v1/activity?date=${today}&limit=10`),
+          fetch(`/api/v1/action-items?status=pending`),
+          fetch(`/api/v1/reminders?due_date=${today}`),
+        ]);
+
+        if (!activityRes.ok || !actionRes.ok || !reminderRes.ok) {
+          throw new Error("Dashboard API unavailable");
+        }
+
+        const [activityJson, actionJson, reminderJson] = await Promise.all([
+          activityRes.json(),
+          actionRes.json(),
+          reminderRes.json(),
+        ]);
+
+        const activityRows = Array.isArray(activityJson) ? activityJson : activityJson?.rows ?? [];
+        const actionRows = Array.isArray(actionJson) ? actionJson : actionJson?.rows ?? [];
+        const reminderRows = Array.isArray(reminderJson) ? reminderJson : reminderJson?.rows ?? [];
+
+        if (!ignore) {
+          setItems(buildDashboardData(activityRows, actionRows, reminderRows));
+          setError(null);
+        }
+      } catch {
+        if (!ignore) {
+          setItems(fallbackDashboard);
+          setError("Using the saved example view until the activity API is live.");
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadDashboard();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const stats = useMemo(
     () => ({
-      total: mockDashboard.length,
-      pending: mockDashboard.filter((item) => item.status === "pending").length,
-      completed: mockDashboard.filter((item) => item.status === "completed").length,
-      today: mockDashboard.filter((item) => item.time.includes("Today")).length,
+      total: items.length,
+      pending: items.filter((item) => item.status === "pending").length,
+      completed: items.filter((item) => item.status === "completed").length,
+      today: items.filter((item) => item.time.includes("Today")).length,
     }),
-    [],
+    [items],
   );
 
   return (
@@ -106,6 +262,12 @@ export function DashboardTab() {
           </div>
         </header>
 
+        {error ? (
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            {error}
+          </div>
+        ) : null}
+
         {activeTab === "dashboard" ? (
           <main className="mt-5 space-y-5">
             <section className="grid grid-cols-2 gap-3">
@@ -113,7 +275,7 @@ export function DashboardTab() {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Total</p>
                 <div className="mt-3 flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-violet-600" />
-                  <span className="text-2xl font-bold">{stats.total}</span>
+                  <span className="text-2xl font-bold">{loading ? "…" : stats.total}</span>
                 </div>
               </div>
 
@@ -121,7 +283,7 @@ export function DashboardTab() {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Pending</p>
                 <div className="mt-3 flex items-center gap-2">
                   <Clock3 className="h-4 w-4 text-amber-500" />
-                  <span className="text-2xl font-bold">{stats.pending}</span>
+                  <span className="text-2xl font-bold">{loading ? "…" : stats.pending}</span>
                 </div>
               </div>
 
@@ -129,7 +291,7 @@ export function DashboardTab() {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Completed</p>
                 <div className="mt-3 flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  <span className="text-2xl font-bold">{stats.completed}</span>
+                  <span className="text-2xl font-bold">{loading ? "…" : stats.completed}</span>
                 </div>
               </div>
 
@@ -137,7 +299,7 @@ export function DashboardTab() {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Today</p>
                 <div className="mt-3 flex items-center gap-2">
                   <CalendarClock className="h-4 w-4 text-sky-500" />
-                  <span className="text-2xl font-bold">{stats.today}</span>
+                  <span className="text-2xl font-bold">{loading ? "…" : stats.today}</span>
                 </div>
               </div>
             </section>
@@ -155,20 +317,22 @@ export function DashboardTab() {
               </div>
 
               <div className="space-y-3">
-                {mockDashboard.map((item) => (
+                {items.map((item) => (
                   <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{item.source}</p>
                         <h3 className="mt-1 text-sm font-semibold text-slate-800">{item.title}</h3>
                       </div>
-                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
-                        item.status === "completed"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : item.status === "pending"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-sky-100 text-sky-700"
-                      }`}>
+                      <span
+                        className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                          item.status === "completed"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : item.status === "pending"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-sky-100 text-sky-700"
+                        }`}
+                      >
                         {item.status}
                       </span>
                     </div>
@@ -199,15 +363,15 @@ export function DashboardTab() {
               </div>
 
               <div className="space-y-3">
-                <div className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/60 p-3">
-                  <p className="text-sm font-medium text-slate-800">Review the central memory architecture</p>
-                  <p className="mt-1 text-xs text-slate-500">Due today • 3:30 PM</p>
-                </div>
-
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-medium text-slate-800">Log the latest activity capture to the source-of-truth API</p>
-                  <p className="mt-1 text-xs text-slate-500">Upcoming • 5:00 PM</p>
-                </div>
+                {items
+                  .filter((item) => item.status !== "completed")
+                  .slice(0, 3)
+                  .map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/60 p-3">
+                      <p className="text-sm font-medium text-slate-800">{item.title}</p>
+                      <p className="mt-1 text-xs text-slate-500">{item.time}</p>
+                    </div>
+                  ))}
               </div>
             </section>
 
@@ -220,7 +384,9 @@ export function DashboardTab() {
                 <ArrowRight className="h-5 w-5 text-violet-600" />
               </div>
               <p className="text-sm text-slate-600">
-                Create the daily compiler job that groups captured records into summaries, pending tasks, and approved reminders.
+                {items[0]
+                  ? `Review ${items[0].title.toLowerCase()} and confirm the next action before the next compile cycle.`
+                  : "Create the daily compiler job that groups captured records into summaries, pending tasks, and approved reminders."}
               </p>
             </section>
           </main>
