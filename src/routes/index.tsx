@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ActivityDashboard } from "@/components/ActivityDashboard";
+import { RemindApp } from "@/components/RemindApp";
 
 export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
-  return <ActivityDashboard />;
+  return <RemindApp />;
 }
