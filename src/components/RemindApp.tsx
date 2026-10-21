@@ -74,10 +74,10 @@ function getSpeechCtor(): SpeechCtor | null {
 }
 
 const REMIND_CHIPS = [
-  { label: "Tomorrow morning", value: "remind me tomorrow at 8 AM " },
-  { label: "Later this afternoon", value: "remind me today at 5 PM " },
-  { label: "Next week", value: "remind me next week at 9 AM " },
-  { label: "In 1 hour", value: "remind me in 1 hour " },
+  { label: "Tomorrow morning", value: "tomorrow at 8 AM " },
+  { label: "Later this afternoon", value: "today at 5 PM " },
+  { label: "Next week", value: "next week at 9 AM " },
+  { label: "In 1 hour", value: "in 1 hour " },
 ];
 
 const SAVE_CHIPS = [
