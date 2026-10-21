@@ -86,7 +86,8 @@ export async function listActivities(
       [
         "SELECT " + columns,
         "FROM activity_events",
-        "WHERE user_id = $1 AND occurred_at::date = $2::date",
+        "WHERE user_id = $1 AND occurred_at >= $2::date",
+        "  AND occurred_at < ($2::date + INTERVAL '1 day')",
         "ORDER BY occurred_at DESC",
         "LIMIT $3",
       ].join("\n"),
@@ -152,7 +153,8 @@ export async function listReminders(options: {
       [
         "SELECT " + columns,
         "FROM reminders",
-        "WHERE user_id = $1 AND due_at::date = $2::date",
+        "WHERE user_id = $1 AND due_at >= $2::date",
+        "  AND due_at < ($2::date + INTERVAL '1 day')",
         "ORDER BY due_at ASC",
         "LIMIT 100",
       ].join("\n"),
