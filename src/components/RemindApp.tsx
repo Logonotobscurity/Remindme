@@ -1,0 +1,1572 @@
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Bell,
+  Bookmark,
+  Calendar,
+  Check,
+  ChevronLeft,
+  Clock,
+  HelpCircle,
+  ImageIcon,
+  LogOut,
+  MapPin,
+  Menu,
+  Mic,
+  Pencil,
+  Plus,
+  Search,
+  Settings,
+  Sparkles,
+  Trash2,
+  User,
+  Video,
+  X,
+} from "lucide-react";
+import {
+  CATEGORY_ICONS,
+  DEFAULT_CATEGORIES,
+  NOTE_COLORS,
+  type Category,
+  type Draft,
+  type MediaKind,
+  type Profile,
+  type Reminder,
+  type SaveItem,
+  clearAllData,
+  combineDateTime,
+  dateChip,
+  firstUrl,
+  formatTimeLabel,
+  getTimeAgo,
+  hostnameOf,
+  hhmm,
+  loadCategories,
+  loadProfile,
+  loadReminders,
+  loadSaves,
+  parseReminder,
+  parseSave,
+  persistCategories,
+  persistProfile,
+  persistReminders,
+  persistSaves,
+  toDateInput,
+} from "@/lib/remind";
+
+type Tab = "remind" | "save" | "reminder";
+type SpeechCtor = new () => {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+function getSpeechCtor(): SpeechCtor | null {
+  if (typeof window === "undefined") return null;
+  const w = window as Window & { webkitSpeechRecognition?: SpeechCtor; SpeechRecognition?: SpeechCtor };
+  return w.SpeechRecognition || w.webkitSpeechRecognition || null;
+}
+
+const REMIND_CHIPS = [
+  { label: "Besok pagi", value: "besok jam 8 pagi " },
+  { label: "Nanti sore", value: "hari ini jam 5 sore " },
+  { label: "Minggu depan", value: "minggu depan jam 9 " },
+  { label: "1 jam lagi", value: "dalam 1 jam " },
+];
+
+const SAVE_CHIPS = [
+  { label: "Ide", prefix: "ide: " },
+  { label: "Tempat", prefix: "lokasi di " },
+  { label: "Link", prefix: "save link " },
+  { label: "Catatan", prefix: "catatan: " },
+];
+
+function MediaThumb({
+  src,
+  kind,
+  className,
+}: {
+  src: string;
+  kind: MediaKind | null;
+  className: string;
+}) {
+  if (kind === "video") {
+    return <video src={src} className={className} muted playsInline />;
+  }
+  return <img src={src} alt="" className={className} />;
+}
+
+export function RemindApp() {
+  const [ready, setReady] = useState(false);
+  const [tab, setTab] = useState<Tab>("remind");
+  const [input, setInput] = useState("");
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [saves, setSaves] = useState<SaveItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [video, setVideo] = useState<string | null>(null);
+  const [showManual, setShowManual] = useState(false);
+  const [manualDate, setManualDate] = useState("");
+  const [manualTime, setManualTime] = useState("");
+  const [manualLocation, setManualLocation] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [saveView, setSaveView] = useState<"list" | "card">("list");
+  const [listView, setListView] = useState<"list" | "card">("list");
+  const [busy, setBusy] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [recordingVideo, setRecordingVideo] = useState(false);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [editing, setEditing] = useState<{ type: "reminder" | "save"; id: number } | null>(null);
+  const [editForm, setEditForm] = useState({ text: "", location: "", date: "", time: "", color: "#ffffff" });
+  const [showCategory, setShowCategory] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIcon, setNewCategoryIcon] = useState("📌");
+  const [showSearch, setShowSearch] = useState(false);
+  const [query, setQuery] = useState("");
+  const [showMenu, setShowMenu] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [toast, setToast] = useState<{ message: string; undo?: { type: "reminder" | "save"; item: Reminder | SaveItem } } | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [notifyOn, setNotifyOn] = useState(false);
+
+  const remindersRef = useRef(reminders);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const speechRef = useRef<{ stop: () => void } | null>(null);
+  remindersRef.current = reminders;
+
+  useEffect(() => {
+    setReminders(loadReminders());
+    setSaves(loadSaves());
+    setCategories(loadCategories());
+    const stored = loadProfile();
+    setProfile(stored);
+    setNameDraft(stored?.name ?? "");
+    setNotifyOn(typeof Notification !== "undefined" && Notification.permission === "granted");
+    setReady(true);
+  }, []);
+
+  useEffect(() => {
+    const tick = () => {
+      const now = Date.now();
+      const current = remindersRef.current;
+      let changed = false;
+      const next = current.map((item) => {
+        if (!item.notified && !item.completed && item.time <= now) {
+          changed = true;
+          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+            try {
+              new Notification("Re:Mind Me", { body: item.text });
+            } catch {
+              /* preview may block notifications */
+            }
+          }
+          return { ...item, notified: true };
+        }
+        return item;
+      });
+      if (changed) {
+        setReminders(next);
+        persistReminders(next);
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 30000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 4000);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  const flash = (message: string, undo?: { type: "reminder" | "save"; item: Reminder | SaveItem }) => {
+    setToast({ message, undo });
+  };
+
+  const popSuccess = () => {
+    setSuccess(true);
+    window.setTimeout(() => setSuccess(false), 900);
+  };
+
+  const attachment = () => {
+    if (video) return { photo: video, mediaKind: "video" as const };
+    if (photo) return { photo, mediaKind: "image" as const };
+    return { photo: null, mediaKind: null };
+  };
+
+  const resetComposer = () => {
+    setInput("");
+    setPhoto(null);
+    setVideo(null);
+    setShowManual(false);
+    setManualDate("");
+    setManualTime("");
+    setManualLocation("");
+    setBusy(false);
+    stopCapture();
+  };
+
+  const switchTab = (next: Tab) => {
+    setTab(next);
+    resetComposer();
+    if (next === "save") setSelectedCategory(null);
+  };
+
+  const onPhoto = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setPhoto(typeof reader.result === "string" ? reader.result : null);
+    reader.readAsDataURL(file);
+  };
+
+  const stopCapture = () => {
+    speechRef.current?.stop();
+    speechRef.current = null;
+    if (recorderRef.current && recorderRef.current.state === "recording") recorderRef.current.stop();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setListening(false);
+    setRecordingVideo(false);
+  };
+
+  const startVoice = () => {
+    if (listening) {
+      stopCapture();
+      return;
+    }
+    const Ctor = getSpeechCtor();
+    if (!Ctor) {
+      flash("Voice typing isn't available in this browser. Type it instead.");
+      return;
+    }
+    const rec = new Ctor();
+    rec.lang = navigator.language || "en-US";
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.onresult = (event) => {
+      const text = Array.from(event.results)
+        .map((row) => row[0]?.transcript ?? "")
+        .join(" ")
+        .trim();
+      if (text) setInput(text);
+    };
+    rec.onerror = () => {
+      setListening(false);
+      flash("Couldn't hear that. Try again, or just type it.");
+    };
+    rec.onend = () => setListening(false);
+    speechRef.current = rec;
+    setListening(true);
+    try {
+      rec.start();
+    } catch {
+      setListening(false);
+      flash("Microphone is busy. Try again in a second.");
+    }
+  };
+
+  const startVideo = async () => {
+    if (recordingVideo) {
+      stopCapture();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      streamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) chunks.push(event.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: recorder.mimeType || "video/webm" });
+        const reader = new FileReader();
+        reader.onloadend = () => setVideo(typeof reader.result === "string" ? reader.result : null);
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach((track) => track.stop());
+        setRecordingVideo(false);
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+      setRecordingVideo(true);
+      window.setTimeout(() => {
+        if (recorder.state === "recording") recorder.stop();
+      }, 20000);
+    } catch {
+      flash("Camera isn't available here.");
+    }
+  };
+
+  const askNotify = async () => {
+    if (typeof Notification === "undefined") {
+      flash("Notifications aren't supported in this browser.");
+      return;
+    }
+    const result = await Notification.requestPermission();
+    setNotifyOn(result === "granted");
+    flash(result === "granted" ? "Notifications are on." : "Notifications stayed off.");
+  };
+
+  const openDraft = async (kind: "reminder" | "save") => {
+    const media = attachment();
+    if (!input.trim() && !media.photo) return;
+    setBusy(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 220));
+    const next =
+      kind === "reminder"
+        ? parseReminder(input, media.photo, media.mediaKind)
+        : parseSave(input, media.photo, media.mediaKind);
+    setDraft(next);
+    setBusy(false);
+  };
+
+  const saveReminderDraft = () => {
+    if (!draft || draft.type !== "reminder") return;
+    const item: Reminder = {
+      id: Date.now(),
+      text: draft.text.trim() || "Reminder",
+      photo: draft.photo,
+      mediaKind: draft.mediaKind,
+      time: draft.time,
+      timeLabel: formatTimeLabel(draft.time),
+      location: draft.location.trim() || null,
+      notified: false,
+      completed: false,
+      created: Date.now(),
+      color: "#ffffff",
+    };
+    const next = [item, ...reminders];
+    setReminders(next);
+    persistReminders(next);
+    setDraft(null);
+    resetComposer();
+    popSuccess();
+    flash("Reminder saved");
+    window.setTimeout(() => setTab("reminder"), 400);
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      void Notification.requestPermission().then((result) => setNotifyOn(result === "granted"));
+    }
+  };
+
+  const saveItemDraft = () => {
+    if (!draft || draft.type !== "save") return;
+    const item: SaveItem = {
+      id: Date.now(),
+      text: draft.text.trim() || "Saved item",
+      photo: draft.photo,
+      mediaKind: draft.mediaKind,
+      location: draft.location.trim() || null,
+      category: draft.categoryId,
+      created: Date.now(),
+      color: "#ffffff",
+    };
+    const next = [item, ...saves];
+    setSaves(next);
+    persistSaves(next);
+    const name = categories.find((c) => c.id === draft.categoryId)?.name ?? "Saved";
+    setDraft(null);
+    resetComposer();
+    popSuccess();
+    flash(`Saved to ${name}`);
+  };
+
+  const addManual = () => {
+    const media = attachment();
+    if ((!input.trim() && !media.photo) || !manualDate || !manualTime) {
+      flash("Pick a date and a time first.");
+      return;
+    }
+    const time = combineDateTime(manualDate, manualTime);
+    if (Number.isNaN(time)) {
+      flash("That date doesn't look right.");
+      return;
+    }
+    const item: Reminder = {
+      id: Date.now(),
+      text: input.trim() || (media.mediaKind === "video" ? "Video reminder" : "Photo reminder"),
+      photo: media.photo,
+      mediaKind: media.mediaKind,
+      time,
+      timeLabel: formatTimeLabel(time),
+      location: manualLocation.trim() || null,
+      notified: false,
+      completed: false,
+      created: Date.now(),
+      color: "#ffffff",
+    };
+    const next = [item, ...reminders];
+    setReminders(next);
+    persistReminders(next);
+    resetComposer();
+    popSuccess();
+    flash("Reminder saved");
+    window.setTimeout(() => setTab("reminder"), 400);
+  };
+
+  const addSaveTo = (category: Category) => {
+    const media = attachment();
+    if (!input.trim() && !media.photo) return;
+    const item: SaveItem = {
+      id: Date.now(),
+      text: input.trim() || (media.mediaKind === "video" ? "Video" : "Photo"),
+      photo: media.photo,
+      mediaKind: media.mediaKind,
+      location: null,
+      category: category.id,
+      created: Date.now(),
+      color: "#ffffff",
+    };
+    const next = [item, ...saves];
+    setSaves(next);
+    persistSaves(next);
+    resetComposer();
+    setSelectedCategory(null);
+    popSuccess();
+    flash(`Saved to ${category.name}`);
+  };
+
+  const removeItem = (id: number, type: "reminder" | "save") => {
+    if (type === "reminder") {
+      const item = reminders.find((r) => r.id === id);
+      const next = reminders.filter((r) => r.id !== id);
+      setReminders(next);
+      persistReminders(next);
+      if (item) flash("Reminder deleted", { type, item });
+    } else {
+      const item = saves.find((s) => s.id === id);
+      const next = saves.filter((s) => s.id !== id);
+      setSaves(next);
+      persistSaves(next);
+      if (item) flash("Item deleted", { type, item });
+    }
+  };
+
+  const undo = () => {
+    if (!toast?.undo) return;
+    if (toast.undo.type === "reminder") {
+      const item = toast.undo.item as Reminder;
+      const next = [item, ...reminders];
+      setReminders(next);
+      persistReminders(next);
+    } else {
+      const item = toast.undo.item as SaveItem;
+      const next = [item, ...saves];
+      setSaves(next);
+      persistSaves(next);
+    }
+    setToast(null);
+  };
+
+  const toggleDone = (id: number) => {
+    const next = reminders.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item));
+    setReminders(next);
+    persistReminders(next);
+  };
+
+  const beginEdit = (item: Reminder | SaveItem, type: "reminder" | "save") => {
+    setEditing({ type, id: item.id });
+    if (type === "reminder" && "time" in item) {
+      const date = new Date(item.time);
+      setEditForm({
+        text: item.text,
+        location: item.location ?? "",
+        date: toDateInput(item.time),
+        time: hhmm(date),
+        color: item.color || "#ffffff",
+      });
+    } else {
+      setEditForm({ text: item.text, location: item.location ?? "", date: "", time: "", color: item.color || "#ffffff" });
+    }
+  };
+
+  const commitEdit = () => {
+    if (!editing) return;
+    if (editing.type === "reminder") {
+      const time = combineDateTime(editForm.date, editForm.time);
+      const next = reminders.map((item) =>
+        item.id === editing.id
+          ? {
+              ...item,
+              text: editForm.text.trim() || item.text,
+              location: editForm.location.trim() || null,
+              time: Number.isNaN(time) ? item.time : time,
+              timeLabel: Number.isNaN(time) ? item.timeLabel : formatTimeLabel(time),
+              color: editForm.color,
+              notified: Number.isNaN(time) ? item.notified : time > Date.now() ? false : item.notified,
+            }
+          : item,
+      );
+      setReminders(next);
+      persistReminders(next);
+    } else {
+      const next = saves.map((item) =>
+        item.id === editing.id
+          ? { ...item, text: editForm.text.trim() || item.text, location: editForm.location.trim() || null, color: editForm.color }
+          : item,
+      );
+      setSaves(next);
+      persistSaves(next);
+    }
+    setEditing(null);
+    flash("Changes saved");
+  };
+
+  const commitCategory = () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    if (editingCategoryId) {
+      const next = categories.map((cat) => (cat.id === editingCategoryId ? { ...cat, name, icon: newCategoryIcon } : cat));
+      setCategories(next);
+      persistCategories(next);
+    } else {
+      const next = [
+        ...categories,
+        { id: `custom_${Date.now()}`, name, icon: newCategoryIcon, color: "#E5E7EB", custom: true },
+      ];
+      setCategories(next);
+      persistCategories(next);
+    }
+    setNewCategoryName("");
+    setNewCategoryIcon("📌");
+    setEditingCategoryId(null);
+    setShowCategory(false);
+  };
+
+  const removeCategory = (id: string) => {
+    const cat = categories.find((c) => c.id === id);
+    if (!cat?.custom) return;
+    const next = categories.filter((c) => c.id !== id);
+    setCategories(next);
+    persistCategories(next);
+    if (selectedCategory === id) setSelectedCategory(null);
+  };
+
+  const signIn = () => {
+    const name = nameDraft.trim();
+    if (!name) return;
+    const next = { name };
+    setProfile(next);
+    persistProfile(next);
+  };
+
+  const signOut = () => {
+    setProfile(null);
+    setNameDraft("");
+    persistProfile(null);
+  };
+
+  const wipe = () => {
+    clearAllData();
+    setReminders([]);
+    setSaves([]);
+    setCategories(DEFAULT_CATEGORIES);
+    setProfile(null);
+    setNameDraft("");
+    setShowSettings(false);
+    flash("Everything on this device was cleared");
+  };
+
+  const filteredReminders = query.trim()
+    ? reminders.filter((item) => `${item.text} ${item.location ?? ""}`.toLowerCase().includes(query.toLowerCase()))
+    : reminders;
+  const filteredSaves = query.trim()
+    ? saves.filter((item) => `${item.text} ${item.location ?? ""}`.toLowerCase().includes(query.toLowerCase()))
+    : saves;
+  const categoryItems =
+    selectedCategory && selectedCategory !== "manual" ? saves.filter((item) => item.category === selectedCategory) : saves;
+
+  const canCompose = Boolean(input.trim() || photo || video);
+
+  if (!ready) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-paper">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-10 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+          <p className="text-sm text-mute">Opening Re:Mind Me</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto flex h-dvh max-w-md flex-col overflow-hidden bg-paper text-ink shadow-2xl shadow-slate-300/40">
+      <header className="z-20 border-b border-line bg-white/85 px-4 py-3 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            aria-label="Open menu"
+            onClick={() => setShowMenu(true)}
+            className="flex size-11 items-center justify-center rounded-xl hover:bg-slate-100"
+          >
+            <Menu size={22} />
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-brand text-white">
+              <Sparkles size={16} />
+            </span>
+            <span className="text-lg font-bold tracking-tight">Re:Mind Me</span>
+          </div>
+          <button
+            type="button"
+            aria-label="Search"
+            onClick={() => setShowSearch(true)}
+            className="flex size-11 items-center justify-center rounded-xl hover:bg-slate-100"
+          >
+            <Search size={20} />
+          </button>
+        </div>
+      </header>
+
+      <main className="relative flex-1 overflow-y-auto pb-28">
+        {tab === "remind" && (
+          <section className="anim-fade space-y-5 p-5">
+            <div className="pt-2 pb-1 text-center">
+              <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-brand text-white shadow-lg shadow-brand/30">
+                <Bell size={28} />
+              </div>
+              <h1 className="text-2xl font-bold">Set a reminder</h1>
+              <p className="mt-1 text-sm text-mute">Write it the way you'd say it.</p>
+            </div>
+            <AttachmentRow photo={photo} video={video} onClearPhoto={() => setPhoto(null)} onClearVideo={() => setVideo(null)} />
+            <div className="flex flex-wrap gap-2">
+              {REMIND_CHIPS.map((chip) => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  onClick={() => setInput((prev) => (prev ? `${prev} ${chip.value}` : chip.value))}
+                  className="rounded-full bg-brand/10 px-3 py-2 text-xs font-semibold text-brand"
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              rows={3}
+              placeholder="Ingetin aku besok jam 9 meeting di kantor"
+              className="w-full resize-none rounded-2xl border border-line bg-white px-4 py-3 text-base shadow-sm outline-none focus:border-brand"
+            />
+            {listening && <p className="text-xs font-semibold text-blush">Listening… speak, then pause.</p>}
+            <div className="grid grid-cols-3 gap-2">
+              <label className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-slate-100 text-sm font-medium">
+                <ImageIcon size={16} />
+                Photo
+                <input type="file" accept="image/*" className="hidden" onChange={(event) => onPhoto(event.target.files?.[0])} />
+              </label>
+              <button
+                type="button"
+                onClick={startVoice}
+                className={`flex h-11 items-center justify-center gap-1.5 rounded-xl text-sm font-medium ${listening ? "bg-blush text-white" : "bg-slate-100"}`}
+              >
+                <Mic size={16} />
+                Voice
+              </button>
+              <button
+                type="button"
+                onClick={() => void startVideo()}
+                className={`flex h-11 items-center justify-center gap-1.5 rounded-xl text-sm font-medium ${recordingVideo ? "bg-blush text-white" : "bg-slate-100"}`}
+              >
+                <Video size={16} />
+                {recordingVideo ? "Stop" : "Video"}
+              </button>
+            </div>
+            {showManual ? (
+              <div className="anim-up space-y-3 rounded-2xl border border-line bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold">Date and time</h2>
+                  <button type="button" aria-label="Close" onClick={() => setShowManual(false)} className="flex size-9 items-center justify-center">
+                    <X size={18} />
+                  </button>
+                </div>
+                <label className="block text-xs font-medium text-mute">
+                  Date
+                  <input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="mt-1 w-full rounded-xl border border-line bg-slate-50 px-3 py-2.5" />
+                </label>
+                <label className="block text-xs font-medium text-mute">
+                  Time
+                  <input type="time" value={manualTime} onChange={(e) => setManualTime(e.target.value)} className="mt-1 w-full rounded-xl border border-line bg-slate-50 px-3 py-2.5" />
+                </label>
+                <label className="block text-xs font-medium text-mute">
+                  Location
+                  <input value={manualLocation} onChange={(e) => setManualLocation(e.target.value)} placeholder="Optional" className="mt-1 w-full rounded-xl border border-line bg-slate-50 px-3 py-2.5" />
+                </label>
+                <button type="button" onClick={addManual} disabled={!canCompose || !manualDate || !manualTime} className="h-12 w-full rounded-xl bg-brand font-semibold text-white disabled:bg-slate-300">
+                  Create reminder
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => void openDraft("reminder")}
+                  disabled={!canCompose || busy}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white shadow-md shadow-brand/25 disabled:bg-slate-300 disabled:shadow-none"
+                >
+                  {busy ? <span className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <Sparkles size={18} />}
+                  {busy ? "Reading it…" : "Create reminder"}
+                </button>
+                <button type="button" onClick={() => setShowManual(true)} disabled={!canCompose} className="flex h-11 w-full items-center justify-center gap-1 text-sm text-mute disabled:opacity-40">
+                  <Calendar size={14} />
+                  or set the time yourself
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {tab === "save" && (
+          <section className="anim-fade p-5">
+            {selectedCategory === null && (
+              <div className="space-y-5">
+                <div className="pt-2 text-center">
+                  <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-sky-600 text-white shadow-lg shadow-sky-600/25">
+                    <Bookmark size={28} />
+                  </div>
+                  <h1 className="text-2xl font-bold">Save something</h1>
+                  <p className="mt-1 text-sm text-mute">Ideas, links, places — anything.</p>
+                </div>
+                <AttachmentRow photo={photo} video={video} onClearPhoto={() => setPhoto(null)} onClearVideo={() => setVideo(null)} />
+                <div className="flex flex-wrap gap-2">
+                  {SAVE_CHIPS.map((chip) => (
+                    <button key={chip.label} type="button" onClick={() => setInput(chip.prefix)} className="rounded-full bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700">
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  rows={3}
+                  placeholder="Lokasi ngedate di Senayan namanya Sate Khas"
+                  className="w-full resize-none rounded-2xl border border-line bg-white px-4 py-3 text-base shadow-sm outline-none focus:border-sky-500"
+                />
+                <label className="flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-100 text-sm font-medium">
+                  <ImageIcon size={16} />
+                  Add photo
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
+                </label>
+                <button
+                  type="button"
+                  disabled={!canCompose || busy}
+                  onClick={() => void openDraft("save")}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-600 font-semibold text-white disabled:bg-slate-300"
+                >
+                  <Sparkles size={18} />
+                  {busy ? "Sorting it…" : "Save it"}
+                </button>
+                <button type="button" disabled={!canCompose} onClick={() => setSelectedCategory("manual")} className="h-10 w-full text-sm text-mute disabled:opacity-40">
+                  or pick a category
+                </button>
+                <Collections
+                  categories={categories}
+                  saves={saves}
+                  onOpen={setSelectedCategory}
+                  onAdd={() => {
+                    setEditingCategoryId(null);
+                    setNewCategoryName("");
+                    setShowCategory(true);
+                  }}
+                />
+              </div>
+            )}
+
+            {selectedCategory === "manual" && (
+              <div className="anim-up space-y-4">
+                <BackButton onClick={() => setSelectedCategory(null)} />
+                <div className="text-center">
+                  <h2 className="text-xl font-bold">Choose a category</h2>
+                  <p className="mt-1 text-sm text-mute">Where should this live?</p>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {categories.map((cat) => (
+                    <button key={cat.id} type="button" onClick={() => addSaveTo(cat)} className="flex flex-col items-center gap-2 rounded-2xl border border-line bg-white p-4">
+                      <span className="text-2xl">{cat.icon}</span>
+                      <span className="text-xs font-medium">{cat.name}</span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCategoryId(null);
+                      setShowCategory(true);
+                    }}
+                    className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-line p-4 text-mute"
+                  >
+                    <Plus size={22} />
+                    <span className="text-xs font-medium">New</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {selectedCategory && selectedCategory !== "manual" && (
+              <CategoryView
+                category={categories.find((c) => c.id === selectedCategory)}
+                items={categoryItems}
+                view={saveView}
+                onView={setSaveView}
+                onBack={() => setSelectedCategory(null)}
+                onEdit={(item) => beginEdit(item, "save")}
+                onDelete={(id) => removeItem(id, "save")}
+                onRename={() => {
+                  const cat = categories.find((c) => c.id === selectedCategory);
+                  if (!cat) return;
+                  setEditingCategoryId(cat.id);
+                  setNewCategoryName(cat.name);
+                  setNewCategoryIcon(cat.icon);
+                  setShowCategory(true);
+                }}
+              />
+            )}
+          </section>
+        )}
+
+        {tab === "reminder" && (
+          <section className="anim-fade space-y-4 p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold">My reminders</h2>
+              <ViewToggle value={listView} onChange={setListView} />
+            </div>
+            {reminders.length === 0 ? (
+              <EmptyBell onCreate={() => setTab("remind")} />
+            ) : listView === "list" ? (
+              <div className="space-y-3">
+                {reminders.map((item) => (
+                  <ReminderRow key={item.id} item={item} onDone={() => toggleDone(item.id)} onEdit={() => beginEdit(item, "reminder")} onDelete={() => removeItem(item.id, "reminder")} />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {reminders.map((item) => (
+                  <ReminderCard key={item.id} item={item} onDone={() => toggleDone(item.id)} onEdit={() => beginEdit(item, "reminder")} onDelete={() => removeItem(item.id, "reminder")} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+      </main>
+
+      {success && (
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-ink/10">
+          <div className="anim-pop flex size-20 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg">
+            <Check size={40} strokeWidth={3} />
+          </div>
+        </div>
+      )}
+
+      {draft && (
+        <Sheet onClose={() => setDraft(null)} title={draft.type === "reminder" ? "Check this reminder" : "Check this save"}>
+          {draft.photo && <MediaThumb src={draft.photo} kind={draft.mediaKind} className="mb-3 h-32 w-full rounded-xl object-cover" />}
+          <label className="mb-3 block text-xs font-medium text-mute">
+            What
+            <input
+              value={draft.text}
+              onChange={(e) => setDraft({ ...draft, text: e.target.value })}
+              className="mt-1 w-full rounded-xl border border-line bg-white px-3 py-2.5"
+            />
+          </label>
+          {draft.type === "reminder" && (
+            <div className="mb-3 grid grid-cols-2 gap-3">
+              <label className="text-xs font-medium text-mute">
+                Date
+                <input
+                  type="date"
+                  value={toDateInput(draft.time)}
+                  onChange={(e) => {
+                    const time = combineDateTime(e.target.value, hhmm(new Date(draft.time)));
+                    if (!Number.isNaN(time)) setDraft({ ...draft, time, dateLabel: dateChip(time), timeLabel: hhmm(new Date(time)) });
+                  }}
+                  className="mt-1 w-full rounded-xl border border-line px-3 py-2.5"
+                />
+              </label>
+              <label className="text-xs font-medium text-mute">
+                Time
+                <input
+                  type="time"
+                  value={hhmm(new Date(draft.time))}
+                  onChange={(e) => {
+                    const time = combineDateTime(toDateInput(draft.time), e.target.value);
+                    if (!Number.isNaN(time)) setDraft({ ...draft, time, dateLabel: dateChip(time), timeLabel: e.target.value });
+                  }}
+                  className="mt-1 w-full rounded-xl border border-line px-3 py-2.5"
+                />
+              </label>
+            </div>
+          )}
+          {draft.type === "save" && (
+            <div className="mb-3">
+              <p className="mb-1.5 text-xs font-medium text-mute">Category</p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, categoryId: cat.id })}
+                    className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${draft.categoryId === cat.id ? "bg-sky-600 text-white" : "bg-slate-100"}`}
+                  >
+                    {cat.icon} {cat.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <label className="mb-4 block text-xs font-medium text-mute">
+            Location
+            <input
+              value={draft.location}
+              onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+              placeholder="Optional"
+              className="mt-1 w-full rounded-xl border border-line px-3 py-2.5"
+            />
+          </label>
+          <div className="flex gap-3">
+            <button type="button" onClick={() => setDraft(null)} className="h-12 flex-1 rounded-xl bg-slate-100 font-semibold">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={draft.type === "reminder" ? saveReminderDraft : saveItemDraft}
+              className="h-12 flex-1 rounded-xl bg-brand font-semibold text-white"
+            >
+              Confirm
+            </button>
+          </div>
+        </Sheet>
+      )}
+
+      {editing && (
+        <div className="anim-fade absolute inset-0 z-50 flex items-center justify-center bg-ink/40 p-6">
+          <div className="anim-up w-full max-w-sm rounded-3xl bg-white p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold">Edit {editing.type === "reminder" ? "reminder" : "item"}</h3>
+              <button type="button" aria-label="Close" onClick={() => setEditing(null)} className="flex size-9 items-center justify-center rounded-full hover:bg-slate-100">
+                <X size={18} />
+              </button>
+            </div>
+            <label className="mb-3 block text-xs font-medium text-mute">
+              Content
+              <input value={editForm.text} onChange={(e) => setEditForm({ ...editForm, text: e.target.value })} className="mt-1 w-full rounded-xl border border-line bg-slate-50 px-3 py-2.5" />
+            </label>
+            <label className="mb-3 block text-xs font-medium text-mute">
+              Location
+              <input value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="mt-1 w-full rounded-xl border border-line bg-slate-50 px-3 py-2.5" />
+            </label>
+            {editing.type === "reminder" && (
+              <div className="mb-3 grid grid-cols-2 gap-3">
+                <input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} className="rounded-xl border border-line px-3 py-2.5" />
+                <input type="time" value={editForm.time} onChange={(e) => setEditForm({ ...editForm, time: e.target.value })} className="rounded-xl border border-line px-3 py-2.5" />
+              </div>
+            )}
+            <div className="mb-4 flex gap-2">
+              {NOTE_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`Color ${color}`}
+                  onClick={() => setEditForm({ ...editForm, color })}
+                  className={`size-8 rounded-full border-2 ${editForm.color === color ? "border-brand" : "border-line"}`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setEditing(null)} className="h-12 flex-1 rounded-xl bg-slate-100 font-semibold">
+                Cancel
+              </button>
+              <button type="button" onClick={commitEdit} className="h-12 flex-1 rounded-xl bg-brand font-semibold text-white">
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCategory && (
+        <div className="anim-fade absolute inset-0 z-50 flex items-center justify-center bg-ink/40 p-6" onClick={() => setShowCategory(false)}>
+          <div className="anim-up w-full max-w-sm rounded-3xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-4 text-lg font-bold">{editingCategoryId ? "Edit category" : "New category"}</h3>
+            <input
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              placeholder="Travel, shopping…"
+              className="mb-3 w-full rounded-xl border border-line px-3 py-2.5"
+            />
+            <div className="mb-4 grid grid-cols-8 gap-1">
+              {CATEGORY_ICONS.map((icon) => (
+                <button key={icon} type="button" onClick={() => setNewCategoryIcon(icon)} className={`rounded-lg p-1.5 text-xl ${newCategoryIcon === icon ? "bg-brand/15 ring-2 ring-brand" : ""}`}>
+                  {icon}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              {editingCategoryId && categories.find((c) => c.id === editingCategoryId)?.custom && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeCategory(editingCategoryId);
+                    setShowCategory(false);
+                  }}
+                  className="h-12 flex-1 rounded-xl bg-blush/10 font-semibold text-blush"
+                >
+                  Delete
+                </button>
+              )}
+              <button type="button" onClick={commitCategory} disabled={!newCategoryName.trim()} className="h-12 flex-1 rounded-xl bg-brand font-semibold text-white disabled:bg-slate-300">
+                {editingCategoryId ? "Save" : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSearch && (
+        <div className="anim-fade absolute inset-0 z-50 overflow-y-auto bg-white p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute top-1/2 left-3 -translate-y-1/2 text-mute" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search reminders and saves"
+                className="h-12 w-full rounded-xl bg-slate-100 pr-3 pl-9 outline-none"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSearch(false);
+                setQuery("");
+              }}
+              className="px-2 font-semibold text-brand"
+            >
+              Cancel
+            </button>
+          </div>
+          {!query.trim() ? (
+            <p className="py-16 text-center text-sm text-mute">Search what you've saved.</p>
+          ) : (
+            <div className="space-y-4">
+              <SearchGroup
+                title="Reminders"
+                empty={filteredReminders.length === 0}
+                items={filteredReminders.map((item) => ({
+                  id: item.id,
+                  title: item.text,
+                  meta: item.timeLabel,
+                  onOpen: () => {
+                    setShowSearch(false);
+                    setQuery("");
+                    setTab("reminder");
+                  },
+                }))}
+              />
+              <SearchGroup
+                title="Saved"
+                empty={filteredSaves.length === 0}
+                items={filteredSaves.map((item) => ({
+                  id: item.id,
+                  title: item.text,
+                  meta: categories.find((c) => c.id === item.category)?.name ?? "Saved",
+                  onOpen: () => {
+                    setShowSearch(false);
+                    setQuery("");
+                    setTab("save");
+                    setSelectedCategory(item.category);
+                  },
+                }))}
+              />
+              {filteredReminders.length === 0 && filteredSaves.length === 0 && <p className="py-10 text-center text-sm text-mute">Nothing matches.</p>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showMenu && (
+        <div className="absolute inset-0 z-50 flex" onClick={() => setShowMenu(false)}>
+          <div className="anim-drawer relative flex h-full w-72 flex-col bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b border-line p-5">
+              <div className="flex items-center gap-3">
+                <span className="flex size-12 items-center justify-center rounded-full bg-brand text-white">
+                  <User size={22} />
+                </span>
+                <div>
+                  <p className="font-semibold">{profile?.name ?? "Guest"}</p>
+                  <p className="text-xs text-mute">{profile ? "On this device" : "No name yet"}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-3">
+              <MenuRow icon={<User size={18} />} label="Profile" onClick={() => { setShowMenu(false); setShowProfile(true); }} />
+              <MenuRow icon={<Settings size={18} />} label="Settings" onClick={() => { setShowMenu(false); setShowSettings(true); }} />
+              <MenuRow icon={<HelpCircle size={18} />} label="How to write" onClick={() => { setShowMenu(false); setShowHelp(true); }} />
+            </div>
+            <div className="mt-auto grid grid-cols-2 gap-3 border-t border-line p-5 text-center">
+              <div>
+                <p className="text-2xl font-bold text-brand">{reminders.length}</p>
+                <p className="text-xs text-mute">Reminders</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-sky-600">{saves.length}</p>
+                <p className="text-xs text-mute">Saved</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 bg-ink/30" />
+        </div>
+      )}
+
+      {showProfile && (
+        <SidePage title="Profile" onBack={() => setShowProfile(false)}>
+          <div className="py-6 text-center">
+            <span className="mx-auto mb-4 flex size-20 items-center justify-center rounded-full bg-brand text-white">
+              <User size={36} />
+            </span>
+            {profile ? (
+              <>
+                <p className="text-xl font-bold">{profile.name}</p>
+                <p className="mt-1 text-sm text-mute">Stored only on this device</p>
+              </>
+            ) : (
+              <>
+                <p className="text-xl font-bold">What should we call you?</p>
+                <p className="mt-1 mb-4 text-sm text-mute">Just a name. Nothing leaves this device.</p>
+                <input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} placeholder="Your name" className="mb-3 w-full rounded-xl border border-line px-3 py-3" />
+                <button type="button" onClick={signIn} disabled={!nameDraft.trim()} className="h-12 rounded-full bg-brand px-8 font-semibold text-white disabled:bg-slate-300">
+                  Save name
+                </button>
+              </>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Stat n={reminders.length} label="Reminders" />
+            <Stat n={saves.length} label="Saved" />
+            <Stat n={categories.length} label="Categories" />
+          </div>
+          {profile && (
+            <button type="button" onClick={signOut} className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blush/10 font-semibold text-blush">
+              <LogOut size={18} />
+              Clear name
+            </button>
+          )}
+        </SidePage>
+      )}
+
+      {showSettings && (
+        <SidePage title="Settings" onBack={() => setShowSettings(false)}>
+          <button type="button" onClick={() => void askNotify()} className="flex h-14 w-full items-center justify-between rounded-2xl bg-white px-4 text-left shadow-sm">
+            <span>
+              <span className="block font-semibold">Notifications</span>
+              <span className="text-xs text-mute">{notifyOn ? "On for this browser" : "Off — tap to allow"}</span>
+            </span>
+            <Bell size={18} className={notifyOn ? "text-brand" : "text-mute"} />
+          </button>
+          <p className="mt-4 text-sm leading-relaxed text-mute">
+            Reminders and saves stay in this browser. They are not uploaded, and clearing site data removes them.
+          </p>
+          <button type="button" onClick={wipe} className="mt-6 h-12 w-full rounded-2xl bg-blush/10 font-semibold text-blush">
+            Clear all data
+          </button>
+        </SidePage>
+      )}
+
+      {showHelp && (
+        <SidePage title="How to write" onBack={() => setShowHelp(false)}>
+          <HelpLine title="Tomorrow morning" body="besok jam 8 pagi minum vitamin" />
+          <HelpLine title="In an hour" body="dalam 1 jam jemput anak" />
+          <HelpLine title="With a place" body="ingetin aku besok jam 9 meeting di kantor" />
+          <HelpLine title="A place to keep" body="lokasi di Senayan namanya Sate Khas" />
+          <HelpLine title="A link" body="save link https://example.com" />
+          <p className="mt-4 text-sm text-mute">You'll always get a check screen before anything is saved, so a wrong time is easy to fix.</p>
+        </SidePage>
+      )}
+
+      {toast && (
+        <div className="anim-up absolute right-4 bottom-24 left-4 z-40">
+          <div className="flex items-center justify-between rounded-2xl bg-ink px-4 py-3 text-sm text-white shadow-lg">
+            <span>{toast.message}</span>
+            {toast.undo && (
+              <button type="button" onClick={undo} className="ml-3 font-semibold text-white/80">
+                Undo
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <nav className="absolute right-4 bottom-4 left-4 z-30">
+        <div className="flex rounded-2xl border border-line bg-white/95 p-1.5 shadow-lg shadow-slate-300/50 backdrop-blur">
+          <NavButton active={tab === "reminder"} onClick={() => switchTab("reminder")} icon={<Bell size={18} fill={tab === "reminder" ? "currentColor" : "none"} />} label="List" />
+          <NavButton active={tab === "remind"} onClick={() => switchTab("remind")} icon={<Plus size={18} />} label="Remind" />
+          <NavButton active={tab === "save"} onClick={() => switchTab("save")} icon={<Bookmark size={18} fill={tab === "save" ? "currentColor" : "none"} />} label="Save" />
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+function AttachmentRow({
+  photo,
+  video,
+  onClearPhoto,
+  onClearVideo,
+}: {
+  photo: string | null;
+  video: string | null;
+  onClearPhoto: () => void;
+  onClearVideo: () => void;
+}) {
+  if (!photo && !video) return null;
+  return (
+    <div className="flex gap-3">
+      {photo && (
+        <div className="relative">
+          <img src={photo} alt="Attached" className="size-20 rounded-xl object-cover" />
+          <button type="button" aria-label="Remove photo" onClick={onClearPhoto} className="absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full bg-blush text-white">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+      {video && (
+        <div className="relative">
+          <video src={video} className="size-20 rounded-xl object-cover" muted />
+          <button type="button" aria-label="Remove video" onClick={onClearVideo} className="absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full bg-blush text-white">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="flex items-center gap-1 text-sm font-medium text-mute">
+      <ChevronLeft size={16} />
+      Back
+    </button>
+  );
+}
+
+function ViewToggle({ value, onChange }: { value: "list" | "card"; onChange: (v: "list" | "card") => void }) {
+  return (
+    <div className="flex rounded-lg bg-slate-100 p-1">
+      {(["list", "card"] as const).map((mode) => (
+        <button key={mode} type="button" onClick={() => onChange(mode)} className={`rounded-md px-3 py-1 text-xs font-semibold capitalize ${value === mode ? "bg-white shadow-sm" : "text-mute"}`}>
+          {mode}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Collections({
+  categories,
+  saves,
+  onOpen,
+  onAdd,
+}: {
+  categories: Category[];
+  saves: SaveItem[];
+  onOpen: (id: string) => void;
+  onAdd: () => void;
+}) {
+  if (saves.length === 0) {
+    return <p className="py-6 text-center text-sm text-mute">Saved things will collect here.</p>;
+  }
+  return (
+    <div className="pt-2">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="font-semibold">Collections</h3>
+        <button type="button" onClick={onAdd} className="flex items-center gap-1 text-xs font-semibold text-brand">
+          <Plus size={14} />
+          Category
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {categories.map((cat) => {
+          const count = saves.filter((item) => item.category === cat.id).length;
+          if (!count) return null;
+          return (
+            <button key={cat.id} type="button" onClick={() => onOpen(cat.id)} className="rounded-2xl border border-line bg-white p-4 text-left">
+              <div className="mb-2 text-2xl">{cat.icon}</div>
+              <div className="text-sm font-semibold">{cat.name}</div>
+              <div className="text-xs text-mute">{count} item{count === 1 ? "" : "s"}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CategoryView({
+  category,
+  items,
+  view,
+  onView,
+  onBack,
+  onEdit,
+  onDelete,
+  onRename,
+}: {
+  category?: Category;
+  items: SaveItem[];
+  view: "list" | "card";
+  onView: (v: "list" | "card") => void;
+  onBack: () => void;
+  onEdit: (item: SaveItem) => void;
+  onDelete: (id: number) => void;
+  onRename: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <BackButton onClick={onBack} />
+        <ViewToggle value={view} onChange={onView} />
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="text-3xl">{category?.icon}</span>
+        <div className="flex-1">
+          <h2 className="text-xl font-bold">{category?.name ?? "Saved"}</h2>
+          <p className="text-sm text-mute">{items.length} item{items.length === 1 ? "" : "s"}</p>
+        </div>
+        <button type="button" aria-label="Edit category" onClick={onRename} className="flex size-10 items-center justify-center rounded-xl bg-slate-100">
+          <Pencil size={16} />
+        </button>
+      </div>
+      {items.length === 0 && <p className="py-10 text-center text-sm text-mute">Nothing in here yet.</p>}
+      {view === "list" ? (
+        <div className="space-y-3">
+          {items.map((item) => (
+            <SaveRow key={item.id} item={item} onEdit={() => onEdit(item)} onDelete={() => onDelete(item.id)} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {items.map((item) => (
+            <article key={item.id} className="overflow-hidden rounded-2xl border border-line" style={{ backgroundColor: item.color }}>
+              {item.photo && <MediaThumb src={item.photo} kind={item.mediaKind} className="h-24 w-full object-cover" />}
+              <div className="p-3">
+                <p className="line-clamp-3 text-sm font-medium">{item.text}</p>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-mute">{getTimeAgo(item.created)}</span>
+                  <span className="flex gap-1">
+                    <IconBtn label="Edit" onClick={() => onEdit(item)}><Pencil size={12} /></IconBtn>
+                    <IconBtn label="Delete" onClick={() => onDelete(item.id)}><Trash2 size={12} /></IconBtn>
+                  </span>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SaveRow({ item, onEdit, onDelete }: { item: SaveItem; onEdit: () => void; onDelete: () => void }) {
+  const url = firstUrl(item.text);
+  return (
+    <article className="flex gap-3 rounded-2xl border border-line bg-white p-4" style={{ backgroundColor: item.color === "#ffffff" ? undefined : item.color }}>
+      {item.photo && <MediaThumb src={item.photo} kind={item.mediaKind} className="size-14 shrink-0 rounded-xl object-cover" />}
+      <div className="min-w-0 flex-1">
+        {url ? (
+          <a href={url} target="_blank" rel="noreferrer" className="block">
+            <p className="text-xs font-medium text-sky-700">{hostnameOf(url)}</p>
+            <p className="line-clamp-2 text-sm">{item.text}</p>
+          </a>
+        ) : (
+          <p className="font-medium">{item.text}</p>
+        )}
+        {item.location && (
+          <a className="mt-2 inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`} target="_blank" rel="noreferrer">
+            <MapPin size={12} />
+            {item.location}
+          </a>
+        )}
+        <p className="mt-2 text-xs text-mute">{getTimeAgo(item.created)}</p>
+      </div>
+      <div className="flex flex-col gap-1">
+        <IconBtn label="Edit" onClick={onEdit}><Pencil size={14} /></IconBtn>
+        <IconBtn label="Delete" onClick={onDelete}><Trash2 size={14} /></IconBtn>
+      </div>
+    </article>
+  );
+}
+
+function ReminderRow({ item, onDone, onEdit, onDelete }: { item: Reminder; onDone: () => void; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <article className={`flex gap-3 rounded-2xl border border-line p-4 ${item.completed ? "opacity-60" : ""}`} style={{ backgroundColor: item.color === "#ffffff" ? "#fff" : item.color }}>
+      {item.photo && <MediaThumb src={item.photo} kind={item.mediaKind} className="size-14 shrink-0 rounded-xl object-cover" />}
+      <div className="min-w-0 flex-1">
+        <p className={`font-medium ${item.completed ? "text-mute line-through" : ""}`}>{item.text}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600">
+            <Clock size={12} />
+            {item.timeLabel}
+          </span>
+          {item.location && (
+            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2 py-1 text-xs text-sky-700">
+              <MapPin size={12} />
+              {item.location}
+            </a>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <button type="button" aria-label={item.completed ? "Mark not done" : "Mark done"} onClick={onDone} className={`flex size-9 items-center justify-center rounded-lg ${item.completed ? "bg-emerald-500 text-white" : "bg-slate-100"}`}>
+          <Check size={16} />
+        </button>
+        <IconBtn label="Edit" onClick={onEdit}><Pencil size={14} /></IconBtn>
+        <IconBtn label="Delete" onClick={onDelete}><Trash2 size={14} /></IconBtn>
+      </div>
+    </article>
+  );
+}
+
+function ReminderCard({ item, onDone, onEdit, onDelete }: { item: Reminder; onDone: () => void; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <article className={`overflow-hidden rounded-2xl border border-line ${item.completed ? "opacity-60" : ""}`} style={{ backgroundColor: item.color === "#ffffff" ? "#fff" : item.color }}>
+      {item.photo && <MediaThumb src={item.photo} kind={item.mediaKind} className="h-24 w-full object-cover" />}
+      <div className="p-3">
+        <div className="mb-2 flex justify-end">
+          <button type="button" aria-label="Toggle done" onClick={onDone} className={`flex size-7 items-center justify-center rounded-lg ${item.completed ? "bg-emerald-500 text-white" : "bg-slate-100"}`}>
+            <Check size={12} />
+          </button>
+        </div>
+        <p className={`line-clamp-2 text-sm font-medium ${item.completed ? "line-through" : ""}`}>{item.text}</p>
+        <p className="mt-2 flex items-center gap-1 text-xs text-mute">
+          <Clock size={10} />
+          <span className="truncate">{item.timeLabel}</span>
+        </p>
+        <div className="mt-2 flex gap-1 border-t border-line pt-2">
+          <IconBtn label="Edit" onClick={onEdit}><Pencil size={12} /></IconBtn>
+          <IconBtn label="Delete" onClick={onDelete}><Trash2 size={12} /></IconBtn>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function EmptyBell({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="py-16 text-center">
+      <div className="mx-auto mb-4 flex size-20 items-center justify-center rounded-3xl bg-brand/10 text-brand">
+        <Bell size={32} />
+      </div>
+      <h3 className="text-lg font-semibold">No reminders yet</h3>
+      <p className="mt-1 mb-4 text-sm text-mute">The first one can be a sentence.</p>
+      <button type="button" onClick={onCreate} className="h-11 rounded-xl bg-brand px-5 font-semibold text-white">
+        Create reminder
+      </button>
+    </div>
+  );
+}
+
+function IconBtn({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" aria-label={label} onClick={onClick} className="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+      {children}
+    </button>
+  );
+}
+
+function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  return (
+    <div className="anim-fade absolute inset-0 z-50 flex items-end bg-ink/40" onClick={onClose}>
+      <div className="anim-sheet max-h-[88%] w-full overflow-y-auto rounded-t-3xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-slate-200" />
+        <h3 className="mb-4 text-center text-lg font-bold">{title}</h3>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function MenuRow({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left hover:bg-slate-50">
+      <span className="text-mute">{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function SidePage({ title, onBack, children }: { title: string; onBack: () => void; children: ReactNode }) {
+  return (
+    <div className="anim-fade absolute inset-0 z-40 overflow-y-auto bg-paper pb-28">
+      <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-white/90 px-3 py-3 backdrop-blur">
+        <button type="button" aria-label="Back" onClick={onBack} className="flex size-10 items-center justify-center rounded-full hover:bg-slate-100">
+          <ChevronLeft size={22} />
+        </button>
+        <h1 className="text-lg font-semibold">{title}</h1>
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
+function Stat({ n, label }: { n: number; label: string }) {
+  return (
+    <div className="rounded-2xl bg-white p-4 text-center shadow-sm">
+      <p className="text-2xl font-bold text-brand">{n}</p>
+      <p className="mt-1 text-xs text-mute">{label}</p>
+    </div>
+  );
+}
+
+function HelpLine({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="mb-3 rounded-2xl bg-white p-4 shadow-sm">
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="mt-1 text-sm text-mute">{body}</p>
+    </div>
+  );
+}
+
+function SearchGroup({
+  title,
+  items,
+  empty,
+}: {
+  title: string;
+  empty: boolean;
+  items: { id: number; title: string; meta: string; onOpen: () => void }[];
+}) {
+  if (empty) return null;
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-semibold tracking-wide text-mute uppercase">{title}</h3>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <button key={item.id} type="button" onClick={item.onOpen} className="w-full rounded-xl bg-slate-50 p-3 text-left">
+            <p className="line-clamp-2 font-medium">{item.title}</p>
+            <p className="mt-1 text-xs text-mute">{item.meta}</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NavButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: ReactNode; label: string }) {
+  return (
+    <button type="button" onClick={onClick} className={`flex h-12 flex-1 items-center justify-center gap-2 rounded-xl text-xs font-semibold ${active ? "bg-brand text-white" : "text-mute"}`}>
+      {icon}
+      {label}
+    </button>
+  );
+}
