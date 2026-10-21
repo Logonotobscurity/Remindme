@@ -162,6 +162,9 @@ export function RemindApp() {
   // when a real account session has resolved; never send a client-supplied user id.
   // Existing browser-local items are intentionally not backfilled into whichever
   // account signs in next.
+  const canCaptureItem = (ownerId?: string) =>
+    Boolean(!authPending && user?.id && ownerId === user.id);
+
   const captureActivity = (event: CapturedActivity) => {
     if (authPending || !user) return;
     void activityApiFetch("/api/v1/activity", {
@@ -385,6 +388,7 @@ export function RemindApp() {
       completed: false,
       created: Date.now(),
       color: "#ffffff",
+      activityOwnerId: !authPending ? user?.id : undefined,
     };
     const next = [item, ...reminders];
     setReminders(next);
@@ -417,6 +421,7 @@ export function RemindApp() {
       category: draft.categoryId,
       created: Date.now(),
       color: "#ffffff",
+      activityOwnerId: !authPending ? user?.id : undefined,
     };
     const next = [item, ...saves];
     setSaves(next);
@@ -458,6 +463,7 @@ export function RemindApp() {
       completed: false,
       created: Date.now(),
       color: "#ffffff",
+      activityOwnerId: !authPending ? user?.id : undefined,
     };
     const next = [item, ...reminders];
     setReminders(next);
@@ -487,6 +493,7 @@ export function RemindApp() {
       category: category.id,
       created: Date.now(),
       color: "#ffffff",
+      activityOwnerId: !authPending ? user?.id : undefined,
     };
     const next = [item, ...saves];
     setSaves(next);
@@ -511,7 +518,7 @@ export function RemindApp() {
       setReminders(next);
       persistReminders(next);
       if (item) {
-        captureActivity({
+        if (canCaptureItem(item.activityOwnerId)) captureActivity({
           title: "Reminder deleted: " + item.text,
           summary: "Removed from the local reminder list.",
           category: "Reminder",
@@ -527,7 +534,7 @@ export function RemindApp() {
       setSaves(next);
       persistSaves(next);
       if (item) {
-        captureActivity({
+        if (canCaptureItem(item.activityOwnerId)) captureActivity({
           title: "Saved item removed: " + item.text,
           summary: "Removed from the local saved-items list.",
           category: "Saved item",
@@ -547,7 +554,7 @@ export function RemindApp() {
       const next = [item, ...reminders];
       setReminders(next);
       persistReminders(next);
-      captureActivity({
+      if (canCaptureItem(item.activityOwnerId)) captureActivity({
         title: "Reminder restored: " + item.text,
         summary: item.timeLabel,
         category: "Reminder",
@@ -559,7 +566,7 @@ export function RemindApp() {
       const next = [item, ...saves];
       setSaves(next);
       persistSaves(next);
-      captureActivity({
+      if (canCaptureItem(item.activityOwnerId)) captureActivity({
         title: "Saved item restored: " + item.text,
         summary: item.location ?? undefined,
         category: "Saved item",
@@ -575,7 +582,7 @@ export function RemindApp() {
     const next = reminders.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item));
     setReminders(next);
     persistReminders(next);
-    if (current) {
+    if (current && canCaptureItem(current.activityOwnerId)) {
       const isCompleting = !current.completed;
       captureActivity({
         title: (isCompleting ? "Reminder completed: " : "Reminder reopened: ") + current.text,
@@ -624,7 +631,7 @@ export function RemindApp() {
       setReminders(next);
       persistReminders(next);
       const updated = next.find((item) => item.id === editing.id);
-      if (updated) {
+      if (updated && canCaptureItem(updated.activityOwnerId)) {
         captureActivity({
           title: "Reminder updated: " + updated.text,
           summary: [updated.timeLabel, updated.location].filter(Boolean).join(" • "),
@@ -642,7 +649,7 @@ export function RemindApp() {
       setSaves(next);
       persistSaves(next);
       const updated = next.find((item) => item.id === editing.id);
-      if (updated) {
+      if (updated && canCaptureItem(updated.activityOwnerId)) {
         captureActivity({
           title: "Saved item updated: " + updated.text,
           summary: updated.location ?? undefined,
