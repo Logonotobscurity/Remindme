@@ -69,7 +69,7 @@ test("dashboard REST paths are registered separately and no fake activity is use
 });
 
 test("real sign-in is enabled and both Better Auth routes are mounted", () => {
-  const appEnv = JSON.parse(read(" .grok/app-env.json".trim()));
+  const appEnv = JSON.parse(read(".grok/app-env.json"));
   assert.equal(Object.hasOwn(appEnv, "VITE_AUTH_ENABLED"), false);
   assert.ok(existsSync(join(root, "migrations/0001_auth.sql")));
   assert.ok(existsSync(join(root, "src/routes/api/auth/$.ts")));
