@@ -180,6 +180,7 @@ function readRows(payload: unknown): unknown[] {
 
 export function DashboardTab() {
   const { user, isPending: authPending } = useCurrentUserState();
+  const userId = user?.id;
   const [activeTab, setActiveTab] = useState<"reminders" | "dashboard">("dashboard");
   const [items, setItems] = useState<DashboardItem[]>([]);
   const [reminders, setReminders] = useState<ReminderRecord[]>([]);
@@ -239,7 +240,7 @@ export function DashboardTab() {
       setLoading(true);
       return;
     }
-    if (!user) {
+    if (!userId) {
       setReminders([]);
       setItems([]);
       setLoadError(false);
@@ -247,7 +248,7 @@ export function DashboardTab() {
       return;
     }
     void loadDashboard();
-  }, [authPending, user?.id, loadDashboard]);
+  }, [authPending, userId, loadDashboard]);
 
   const stats = useMemo(
     () => ({
