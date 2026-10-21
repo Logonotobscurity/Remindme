@@ -83,7 +83,7 @@ test("signed-in reminder and save actions emit private activity events", () => {
   assert.match(app, /privacyLevel: "private"/);
   assert.match(app, /remindme:reminder:/);
   assert.match(app, /remindme:save:/);
-  assert.match(app, /if \(authPending \|\| !user\) return/);
+  assert.match(app, /if \(authPending \|\| !user \|\| user\.isDevFallback\) return/);
 });
 
 test("local reminders, saves, categories, and profile are partitioned by account", () => {
