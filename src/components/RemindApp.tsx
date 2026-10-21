@@ -8,6 +8,7 @@ import {
   Clock,
   HelpCircle,
   ImageIcon,
+  LayoutGrid,
   LogOut,
   MapPin,
   Menu,
@@ -52,8 +53,9 @@ import {
   persistSaves,
   toDateInput,
 } from "@/lib/remind";
+import { DashboardTab } from "./DashboardTab";
 
-type Tab = "remind" | "save" | "reminder";
+type Tab = "remind" | "save" | "reminder" | "dashboard";
 type SpeechCtor = new () => {
   lang: string;
   interimResults: boolean;
@@ -629,7 +631,9 @@ export function RemindApp() {
       </header>
 
       <main className="relative flex-1 overflow-y-auto pb-28">
-        {tab === "remind" && (
+        {tab === "dashboard" ? (
+          <DashboardTab />
+        ) : tab === "remind" ? (
           <section className="anim-fade space-y-5 p-5">
             <div className="pt-2 pb-1 text-center">
               <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-brand text-white shadow-lg shadow-brand/30">
@@ -724,9 +728,7 @@ export function RemindApp() {
               </div>
             )}
           </section>
-        )}
-
-        {tab === "save" && (
+        ) : tab === "save" ? (
           <section className="anim-fade p-5">
             {selectedCategory === null && (
               <div className="space-y-5">
@@ -831,9 +833,7 @@ export function RemindApp() {
               />
             )}
           </section>
-        )}
-
-        {tab === "reminder" && (
+        ) : (
           <section className="anim-fade space-y-4 p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold">My reminders</h2>
@@ -1211,6 +1211,7 @@ export function RemindApp() {
           <NavButton active={tab === "reminder"} onClick={() => switchTab("reminder")} icon={<Bell size={18} fill={tab === "reminder" ? "currentColor" : "none"} />} label="List" />
           <NavButton active={tab === "remind"} onClick={() => switchTab("remind")} icon={<Plus size={18} />} label="Remind" />
           <NavButton active={tab === "save"} onClick={() => switchTab("save")} icon={<Bookmark size={18} fill={tab === "save" ? "currentColor" : "none"} />} label="Save" />
+          <NavButton active={tab === "dashboard"} onClick={() => switchTab("dashboard")} icon={<LayoutGrid size={18} />} label="Dashboard" />
         </div>
       </nav>
     </div>
