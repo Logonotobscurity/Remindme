@@ -175,9 +175,9 @@ export function dateChip(ts: number, now = new Date()) {
   const target = new Date(date);
   target.setHours(0, 0, 0, 0);
   const diff = Math.round((target.getTime() - start.getTime()) / 86400000);
-  if (diff === 0) return "Hari ini";
-  if (diff === 1) return "Besok";
-  if (diff === 2) return "Lusa";
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === 2) return "Day after tomorrow";
   return `${MONTHS[date.getMonth()]} ${date.getDate()}`;
 }
 
@@ -220,17 +220,17 @@ export function parseReminder(inputText: string, photo: string | null, mediaKind
   const text = original.toLowerCase();
   const now = new Date();
   let date = new Date(now);
-  let dateLabel = "Hari ini";
+  let dateLabel = "Today";
 
   if (/\b(besok|tomorrow)\b/.test(text)) {
     date.setDate(date.getDate() + 1);
-    dateLabel = "Besok";
+    dateLabel = "Tomorrow";
   } else if (/\blusa\b/.test(text)) {
     date.setDate(date.getDate() + 2);
-    dateLabel = "Lusa";
+    dateLabel = "Day after tomorrow";
   } else if (/\b(minggu depan|next week)\b/.test(text)) {
     date.setDate(date.getDate() + 7);
-    dateLabel = "Minggu depan";
+    dateLabel = "Next week";
   }
 
   let hour = 9;
@@ -348,7 +348,7 @@ export function parseSave(inputText: string, photo: string | null, mediaKind: Me
 
   const urlMatch = original.match(/https?:\/\/[^\s]+/i);
   const namedPlace = original.match(
-    /(?:lokasi|tempat)\s*(?:ngedate|makan|hangout|ngopi|date)?\s*(?:di\s+)?([a-z0-9][a-z0-9\s.'-]{0,30}?)\s+namanya\s+([a-z0-9][a-z0-9\s&'.-]{0,40})/i,
+    /(?:lokasi|tempat|place|location)\s*(?:ngedate|makan|hangout|ngopi|date)?\s*(?:(?:di|in)\s+)?([a-z0-9][a-z0-9\s.'-]{0,30}?)\s+(?:namanya|named|called)\s+([a-z0-9][a-z0-9\s&'.-]{0,40})/i,
   );
 
   if (namedPlace) {
@@ -366,10 +366,10 @@ export function parseSave(inputText: string, photo: string | null, mediaKind: Me
         break;
       }
     }
-    if (/\b(lokasi|tempat|place)\b/i.test(text)) categoryId = "place";
+    if (/\b(lokasi|tempat|place|location)\b/i.test(text)) categoryId = "place";
     if (!original && (photo || mediaKind)) categoryId = "photos";
     else if ((photo || mediaKind) && categoryId === "other") categoryId = "photos";
-    clean = original.replace(/^(save|simpan|ide|idea|catatan|note|lokasi)\s*[:\-]?\s*/i, "").trim();
+    clean = original.replace(/^(save|simpan|ide|idea|catatan|note|lokasi|place|location)\s*[:\-]?\s*/i, "").trim();
     const loc = clean.match(/\b(?:di|at)\s+([A-Za-z0-9][A-Za-z0-9\s.'-]{1,40})$/i);
     if (loc && categoryId === "place") {
       location = titleCase(loc[1].trim());
