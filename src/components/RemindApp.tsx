@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { activityApiFetch } from "@/lib/activity/api-client";
 import {
   Bell,
   Bookmark,
@@ -87,6 +89,15 @@ const SAVE_CHIPS = [
   { label: "Note", prefix: "note: " },
 ];
 
+type CapturedActivity = {
+  title: string;
+  summary?: string;
+  category: string;
+  activityType: "reminder" | "note";
+  sourceReference: string;
+  completionStatus?: "recorded" | "in_progress" | "completed" | "archived";
+};
+
 function MediaThumb({
   src,
   kind,
@@ -103,6 +114,9 @@ function MediaThumb({
 }
 
 export function RemindApp() {
+  const { user, isPending: authPending } = useCurrentUserState();
+  const storageScope = user?.id ?? "guest";
+  const [loadedScope, setLoadedScope] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("remind");
   const [input, setInput] = useState("");
@@ -146,19 +160,51 @@ export function RemindApp() {
   const speechRef = useRef<{ stop: () => void } | null>(null);
   remindersRef.current = reminders;
 
+  // Local reminders and saved items remain usable offline. Only send new events
+  // when a real account session has resolved; never send a client-supplied user id.
+  // Existing browser-local items are intentionally not backfilled into whichever
+  // account signs in next.
+  const canCaptureItem = (ownerId?: string) =>
+    Boolean(!authPending && user?.id && ownerId === user.id);
+
+  const captureActivity = (event: CapturedActivity) => {
+    if (authPending || !user) return;
+    void activityApiFetch("/api/v1/activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: "pwa",
+        title: event.title.slice(0, 240),
+        summary: event.summary?.slice(0, 4000),
+        category: event.category.slice(0, 80),
+        activityType: event.activityType,
+        sourceReference: event.sourceReference.slice(0, 500),
+        captureMethod: "manual",
+        privacyLevel: "private",
+        completionStatus: event.completionStatus ?? "recorded",
+        occurredAt: new Date().toISOString(),
+      }),
+    }).catch(() => {
+      // Local capture must not fail just because the network or API is unavailable.
+    });
+  };
+
   useEffect(() => {
-    setReminders(loadReminders());
-    setSaves(loadSaves());
-    setCategories(loadCategories());
-    const stored = loadProfile();
+    if (authPending) return;
+    setReminders(loadReminders(storageScope));
+    setSaves(loadSaves(storageScope));
+    setCategories(loadCategories(storageScope));
+    const stored = loadProfile(storageScope);
     setProfile(stored);
     setNameDraft(stored?.name ?? "");
     setNotifyOn(typeof Notification !== "undefined" && Notification.permission === "granted");
+    setLoadedScope(storageScope);
     setReady(true);
-  }, []);
+  }, [authPending, storageScope]);
 
   useEffect(() => {
     const tick = () => {
+      if (authPending || loadedScope !== storageScope) return;
       const now = Date.now();
       const current = remindersRef.current;
       let changed = false;
@@ -178,13 +224,13 @@ export function RemindApp() {
       });
       if (changed) {
         setReminders(next);
-        persistReminders(next);
+        persistReminders(next, storageScope);
       }
     };
     tick();
     const id = window.setInterval(tick, 30000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [authPending, loadedScope, storageScope]);
 
   useEffect(() => {
     if (!toast) return;
@@ -347,10 +393,18 @@ export function RemindApp() {
       completed: false,
       created: Date.now(),
       color: "#ffffff",
+      activityOwnerId: !authPending ? user?.id : undefined,
     };
     const next = [item, ...reminders];
     setReminders(next);
-    persistReminders(next);
+    persistReminders(next, storageScope);
+    captureActivity({
+      title: "Reminder created: " + item.text,
+      summary: [item.timeLabel, item.location].filter(Boolean).join(" • "),
+      category: "Reminder",
+      activityType: "reminder",
+      sourceReference: "remindme:reminder:" + item.id + ":created",
+    });
     setDraft(null);
     resetComposer();
     popSuccess();
@@ -372,11 +426,19 @@ export function RemindApp() {
       category: draft.categoryId,
       created: Date.now(),
       color: "#ffffff",
+      activityOwnerId: !authPending ? user?.id : undefined,
     };
     const next = [item, ...saves];
     setSaves(next);
-    persistSaves(next);
+    persistSaves(next, storageScope);
     const name = categories.find((c) => c.id === draft.categoryId)?.name ?? "Saved";
+    captureActivity({
+      title: "Saved item: " + item.text,
+      summary: [name, item.location].filter(Boolean).join(" • "),
+      category: name,
+      activityType: "note",
+      sourceReference: "remindme:save:" + item.id + ":created",
+    });
     setDraft(null);
     resetComposer();
     popSuccess();
@@ -406,10 +468,18 @@ export function RemindApp() {
       completed: false,
       created: Date.now(),
       color: "#ffffff",
+      activityOwnerId: !authPending ? user?.id : undefined,
     };
     const next = [item, ...reminders];
     setReminders(next);
-    persistReminders(next);
+    persistReminders(next, storageScope);
+    captureActivity({
+      title: "Reminder created: " + item.text,
+      summary: [item.timeLabel, item.location].filter(Boolean).join(" • "),
+      category: "Reminder",
+      activityType: "reminder",
+      sourceReference: "remindme:reminder:" + item.id + ":created",
+    });
     resetComposer();
     popSuccess();
     flash("Reminder saved");
@@ -428,10 +498,18 @@ export function RemindApp() {
       category: category.id,
       created: Date.now(),
       color: "#ffffff",
+      activityOwnerId: !authPending ? user?.id : undefined,
     };
     const next = [item, ...saves];
     setSaves(next);
-    persistSaves(next);
+    persistSaves(next, storageScope);
+    captureActivity({
+      title: "Saved item: " + item.text,
+      summary: [category.name, item.location].filter(Boolean).join(" • "),
+      category: category.name,
+      activityType: "note",
+      sourceReference: "remindme:save:" + item.id + ":created",
+    });
     resetComposer();
     setSelectedCategory(null);
     popSuccess();
@@ -443,14 +521,34 @@ export function RemindApp() {
       const item = reminders.find((r) => r.id === id);
       const next = reminders.filter((r) => r.id !== id);
       setReminders(next);
-      persistReminders(next);
-      if (item) flash("Reminder deleted", { type, item });
+      persistReminders(next, storageScope);
+      if (item) {
+        if (canCaptureItem(item.activityOwnerId)) captureActivity({
+          title: "Reminder deleted: " + item.text,
+          summary: "Removed from the local reminder list.",
+          category: "Reminder",
+          activityType: "reminder",
+          completionStatus: "completed",
+          sourceReference: "remindme:reminder:" + item.id + ":deleted:" + Date.now(),
+        });
+        flash("Reminder deleted", { type, item });
+      }
     } else {
       const item = saves.find((s) => s.id === id);
       const next = saves.filter((s) => s.id !== id);
       setSaves(next);
-      persistSaves(next);
-      if (item) flash("Item deleted", { type, item });
+      persistSaves(next, storageScope);
+      if (item) {
+        if (canCaptureItem(item.activityOwnerId)) captureActivity({
+          title: "Saved item removed: " + item.text,
+          summary: "Removed from the local saved-items list.",
+          category: "Saved item",
+          activityType: "note",
+          completionStatus: "completed",
+          sourceReference: "remindme:save:" + item.id + ":deleted:" + Date.now(),
+        });
+        flash("Item deleted", { type, item });
+      }
     }
   };
 
@@ -460,20 +558,46 @@ export function RemindApp() {
       const item = toast.undo.item as Reminder;
       const next = [item, ...reminders];
       setReminders(next);
-      persistReminders(next);
+      persistReminders(next, storageScope);
+      if (canCaptureItem(item.activityOwnerId)) captureActivity({
+        title: "Reminder restored: " + item.text,
+        summary: item.timeLabel,
+        category: "Reminder",
+        activityType: "reminder",
+        sourceReference: "remindme:reminder:" + item.id + ":restored:" + Date.now(),
+      });
     } else {
       const item = toast.undo.item as SaveItem;
       const next = [item, ...saves];
       setSaves(next);
-      persistSaves(next);
+      persistSaves(next, storageScope);
+      if (canCaptureItem(item.activityOwnerId)) captureActivity({
+        title: "Saved item restored: " + item.text,
+        summary: item.location ?? undefined,
+        category: "Saved item",
+        activityType: "note",
+        sourceReference: "remindme:save:" + item.id + ":restored:" + Date.now(),
+      });
     }
     setToast(null);
   };
 
   const toggleDone = (id: number) => {
+    const current = reminders.find((item) => item.id === id);
     const next = reminders.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item));
     setReminders(next);
-    persistReminders(next);
+    persistReminders(next, storageScope);
+    if (current && canCaptureItem(current.activityOwnerId)) {
+      const isCompleting = !current.completed;
+      captureActivity({
+        title: (isCompleting ? "Reminder completed: " : "Reminder reopened: ") + current.text,
+        summary: current.timeLabel,
+        category: "Reminder",
+        activityType: "reminder",
+        completionStatus: isCompleting ? "completed" : "in_progress",
+        sourceReference: "remindme:reminder:" + current.id + ":" + (isCompleting ? "completed:" : "reopened:") + Date.now(),
+      });
+    }
   };
 
   const beginEdit = (item: Reminder | SaveItem, type: "reminder" | "save") => {
@@ -510,7 +634,17 @@ export function RemindApp() {
           : item,
       );
       setReminders(next);
-      persistReminders(next);
+      persistReminders(next, storageScope);
+      const updated = next.find((item) => item.id === editing.id);
+      if (updated && canCaptureItem(updated.activityOwnerId)) {
+        captureActivity({
+          title: "Reminder updated: " + updated.text,
+          summary: [updated.timeLabel, updated.location].filter(Boolean).join(" • "),
+          category: "Reminder",
+          activityType: "reminder",
+          sourceReference: "remindme:reminder:" + updated.id + ":updated:" + Date.now(),
+        });
+      }
     } else {
       const next = saves.map((item) =>
         item.id === editing.id
@@ -518,7 +652,17 @@ export function RemindApp() {
           : item,
       );
       setSaves(next);
-      persistSaves(next);
+      persistSaves(next, storageScope);
+      const updated = next.find((item) => item.id === editing.id);
+      if (updated && canCaptureItem(updated.activityOwnerId)) {
+        captureActivity({
+          title: "Saved item updated: " + updated.text,
+          summary: updated.location ?? undefined,
+          category: "Saved item",
+          activityType: "note",
+          sourceReference: "remindme:save:" + updated.id + ":updated:" + Date.now(),
+        });
+      }
     }
     setEditing(null);
     flash("Changes saved");
@@ -530,14 +674,14 @@ export function RemindApp() {
     if (editingCategoryId) {
       const next = categories.map((cat) => (cat.id === editingCategoryId ? { ...cat, name, icon: newCategoryIcon } : cat));
       setCategories(next);
-      persistCategories(next);
+      persistCategories(next, storageScope);
     } else {
       const next = [
         ...categories,
         { id: `custom_${Date.now()}`, name, icon: newCategoryIcon, color: "#E5E7EB", custom: true },
       ];
       setCategories(next);
-      persistCategories(next);
+      persistCategories(next, storageScope);
     }
     setNewCategoryName("");
     setNewCategoryIcon("📌");
@@ -550,7 +694,7 @@ export function RemindApp() {
     if (!cat?.custom) return;
     const next = categories.filter((c) => c.id !== id);
     setCategories(next);
-    persistCategories(next);
+    persistCategories(next, storageScope);
     if (selectedCategory === id) setSelectedCategory(null);
   };
 
@@ -559,24 +703,24 @@ export function RemindApp() {
     if (!name) return;
     const next = { name };
     setProfile(next);
-    persistProfile(next);
+    persistProfile(next, storageScope);
   };
 
   const signOut = () => {
     setProfile(null);
     setNameDraft("");
-    persistProfile(null);
+    persistProfile(null, storageScope);
   };
 
   const wipe = () => {
-    clearAllData();
+    clearAllData(storageScope);
     setReminders([]);
     setSaves([]);
     setCategories(DEFAULT_CATEGORIES);
     setProfile(null);
     setNameDraft("");
     setShowSettings(false);
-    flash("Everything on this device was cleared");
+    flash("This workspace’s data on this device was cleared");
   };
 
   const filteredReminders = query.trim()
@@ -590,7 +734,7 @@ export function RemindApp() {
 
   const canCompose = Boolean(input.trim() || photo || video);
 
-  if (!ready) {
+  if (!ready || authPending || loadedScope !== storageScope) {
     return (
       <div className="flex h-dvh items-center justify-center bg-paper">
         <div className="flex flex-col items-center gap-3">
