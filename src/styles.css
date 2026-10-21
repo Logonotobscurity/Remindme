@@ -317,7 +317,7 @@
 }
 .is-slumber .commit-button { background: #F5EDD4; color: #181917; }
 .is-slumber .commit-button:hover:not(:disabled) { background: #82B49A; color: #181917; }
-.is-slumber .remind-shell > nav > div { background: rgb(35 36 31 / 94%); }
+.remind-shell.is-slumber > nav > div { background: rgb(35 36 31 / 94%); }
 .is-slumber .thinking-orb::before { border-color: rgb(180 154 240 / 42%); }
 .is-slumber .thinking-orb::after { border-color: rgb(130 180 154 / 34%); }
 .is-slumber .orb-core { color: #181917; }
