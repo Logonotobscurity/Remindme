@@ -11,7 +11,7 @@ export function activityApiFetch(
   const headers = new Headers(init.headers);
   const bearerToken = getBearerToken();
   if (bearerToken && !headers.has("Authorization")) {
-    headers.set("Authorization", \`Bearer \${bearerToken}\`);
+    headers.set("Authorization", "Bearer " + bearerToken);
   }
 
   return fetch(input, {
