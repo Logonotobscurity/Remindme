@@ -74,17 +74,17 @@ function getSpeechCtor(): SpeechCtor | null {
 }
 
 const REMIND_CHIPS = [
-  { label: "Besok pagi", value: "besok jam 8 pagi " },
-  { label: "Nanti sore", value: "hari ini jam 5 sore " },
-  { label: "Minggu depan", value: "minggu depan jam 9 " },
-  { label: "1 jam lagi", value: "dalam 1 jam " },
+  { label: "Tomorrow morning", value: "tomorrow at 8 AM " },
+  { label: "Later this afternoon", value: "today at 5 PM " },
+  { label: "Next week", value: "next week at 9 AM " },
+  { label: "In 1 hour", value: "in 1 hour " },
 ];
 
 const SAVE_CHIPS = [
-  { label: "Ide", prefix: "ide: " },
-  { label: "Tempat", prefix: "lokasi di " },
+  { label: "Idea", prefix: "idea: " },
+  { label: "Place", prefix: "place in " },
   { label: "Link", prefix: "save link " },
-  { label: "Catatan", prefix: "catatan: " },
+  { label: "Note", prefix: "note: " },
 ];
 
 function MediaThumb({
@@ -659,7 +659,7 @@ export function RemindApp() {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               rows={3}
-              placeholder="Ingetin aku besok jam 9 meeting di kantor"
+              placeholder="Remind me tomorrow at 9 AM to meet at the office"
               className="w-full resize-none rounded-2xl border border-line bg-white px-4 py-3 text-base shadow-sm outline-none focus:border-brand"
             />
             {listening && <p className="text-xs font-semibold text-blush">Listening… speak, then pause.</p>}
@@ -751,7 +751,7 @@ export function RemindApp() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   rows={3}
-                  placeholder="Lokasi ngedate di Senayan namanya Sate Khas"
+                  placeholder="A place in Senayan called Sate Khas"
                   className="w-full resize-none rounded-2xl border border-line bg-white px-4 py-3 text-base shadow-sm outline-none focus:border-sky-500"
                 />
                 <label className="flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-100 text-sm font-medium">
@@ -1184,10 +1184,10 @@ export function RemindApp() {
 
       {showHelp && (
         <SidePage title="How to write" onBack={() => setShowHelp(false)}>
-          <HelpLine title="Tomorrow morning" body="besok jam 8 pagi minum vitamin" />
-          <HelpLine title="In an hour" body="dalam 1 jam jemput anak" />
-          <HelpLine title="With a place" body="ingetin aku besok jam 9 meeting di kantor" />
-          <HelpLine title="A place to keep" body="lokasi di Senayan namanya Sate Khas" />
+          <HelpLine title="Tomorrow morning" body="Remind me tomorrow at 8 AM to take vitamins" />
+          <HelpLine title="In an hour" body="Remind me in 1 hour to pick up the children" />
+          <HelpLine title="With a place" body="Remind me tomorrow at 9 AM to meet at the office" />
+          <HelpLine title="A place to keep" body="A place in Senayan called Sate Khas" />
           <HelpLine title="A link" body="save link https://example.com" />
           <p className="mt-4 text-sm text-mute">You'll always get a check screen before anything is saved, so a wrong time is easy to fix.</p>
         </SidePage>
