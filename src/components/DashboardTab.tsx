@@ -69,38 +69,7 @@ type ActivityFormState = {
   completionStatus: ActivityStatus;
 };
 
-const fallbackDashboard: DashboardItem[] = [
-  {
-    id: 1,
-    title: "LOG_ON architecture review",
-    summary: "Reviewed the daily capture and central memory design for the Re:Mind Me system.",
-    source: "Claude",
-    category: "Engineering",
-    status: "recorded",
-    time: "Today • 10:18 AM",
-    location: "LOG_ON",
-  },
-  {
-    id: 2,
-    title: "Reminder system design",
-    summary: "Defined the source-of-truth activity model and API contract for reminders and daily summaries.",
-    source: "Grok",
-    category: "Planning",
-    status: "pending",
-    time: "Today • 2:42 PM",
-    location: "Re:Mind Me",
-  },
-  {
-    id: 3,
-    title: "Daily compiler milestone",
-    summary: "Outlined the compiler, dedupe rules, and the distinction between activities, action items, and reminders.",
-    source: "PWA",
-    category: "Product",
-    status: "completed",
-    time: "Today • 6:05 PM",
-    location: "Dashboard",
-  },
-];
+const fallbackDashboard: DashboardItem[] = [];
 
 const tabs = [
   { id: "reminders", label: "Reminders", icon: Bell },
@@ -204,10 +173,11 @@ function readRows(payload: unknown): unknown[] {
 
 export function DashboardTab() {
   const [activeTab, setActiveTab] = useState<"reminders" | "dashboard">("dashboard");
-  const [items, setItems] = useState<DashboardItem[]>(fallbackDashboard);
+  const [items, setItems] = useState<DashboardItem[]>([]);
   const [reminders, setReminders] = useState<ReminderRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [form, setForm] = useState<ActivityFormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
 
@@ -236,11 +206,13 @@ export function DashboardTab() {
 
       setReminders(reminderRows);
       setItems(buildDashboardData(activityRows, actionRows, reminderRows));
+      setLoadError(false);
       setNotice(null);
     } catch {
       setReminders([]);
-      setItems(fallbackDashboard);
-      setNotice("Using the saved example view until the activity API is live.");
+      setItems([]);
+      setLoadError(true);
+      setNotice("The live activity feed is unavailable. Your locally saved reminders still work.");
     } finally {
       setLoading(false);
     }
@@ -396,37 +368,51 @@ export function DashboardTab() {
               </div>
 
               <div className="space-y-3">
-                {items.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{item.source}</p>
-                        <h3 className="mt-1 text-sm font-semibold text-slate-800">{item.title}</h3>
-                      </div>
-                      <span
-                        className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
-                          item.status === "completed"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : item.status === "pending"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-sky-100 text-sky-700"
-                        }`}
-                      >
-                        {item.status}
-                      </span>
-                    </div>
-
-                    <p className="mt-2 text-sm text-slate-600">{item.summary}</p>
-
-                    <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
-                      <span className="rounded-full bg-white px-2 py-1">{item.category}</span>
-                      <span className="flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> {item.time}</span>
-                      {item.location ? (
-                        <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {item.location}</span>
-                      ) : null}
-                    </div>
+                {loading ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                    Loading today’s activity…
                   </div>
-                ))}
+                ) : loadError ? (
+                  <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    Live activity could not be loaded. Check the activity API connection and try again.
+                  </div>
+                ) : items.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                    No activity recorded today yet. Add your first activity to begin building your daily memory.
+                  </div>
+                ) : (
+                  items.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{item.source}</p>
+                          <h3 className="mt-1 text-sm font-semibold text-slate-800">{item.title}</h3>
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                            item.status === "completed"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : item.status === "pending"
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-sky-100 text-sky-700"
+                          }`}
+                        >
+                          {item.status}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-sm text-slate-600">{item.summary}</p>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+                        <span className="rounded-full bg-white px-2 py-1">{item.category}</span>
+                        <span className="flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> {item.time}</span>
+                        {item.location ? (
+                          <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {item.location}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </section>
           </main>
