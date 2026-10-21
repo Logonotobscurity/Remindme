@@ -15,11 +15,13 @@ import {
   MapPin,
   Menu,
   Mic,
+  MoonStar,
   Pencil,
   Plus,
   Search,
   Settings,
   Sparkles,
+  Sun,
   Trash2,
   User,
   Video,
@@ -153,12 +155,28 @@ export function RemindApp() {
   const [toast, setToast] = useState<{ message: string; undo?: { type: "reminder" | "save"; item: Reminder | SaveItem } } | null>(null);
   const [success, setSuccess] = useState(false);
   const [notifyOn, setNotifyOn] = useState(false);
+  const [autoSlumber, setAutoSlumber] = useState(false);
+  const [slumberOverride, setSlumberOverride] = useState<boolean | null>(null);
+  const [engagedChip, setEngagedChip] = useState<string | null>(null);
+  const slumberMode = slumberOverride ?? autoSlumber;
 
   const remindersRef = useRef(reminders);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const speechRef = useRef<{ stop: () => void } | null>(null);
   remindersRef.current = reminders;
+
+  // Follow local evening/night hours by default. The header toggle can override
+  // the automatic schedule for the current session.
+  useEffect(() => {
+    const syncSlumber = () => {
+      const hour = new Date().getHours();
+      setAutoSlumber(hour >= 19 || hour < 7);
+    };
+    syncSlumber();
+    const id = window.setInterval(syncSlumber, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   // Local reminders and saved items remain usable offline. Only send new events
   // when a real account session has resolved; never send a client-supplied user id.
@@ -746,8 +764,11 @@ export function RemindApp() {
   }
 
   return (
-    <div className="mx-auto flex h-dvh max-w-md flex-col overflow-hidden bg-paper text-ink shadow-2xl shadow-slate-300/40">
-      <header className="z-20 border-b border-line bg-white/85 px-4 py-3 backdrop-blur-xl">
+    <div
+      data-slumber={slumberMode ? "true" : "false"}
+      className={`remind-shell relative mx-auto flex h-dvh w-full max-w-6xl flex-col overflow-hidden bg-paper text-ink shadow-2xl shadow-slate-300/40 transition-colors duration-700 ${slumberMode ? "is-slumber" : ""}`}
+    >
+      <header className="app-topbar z-20 border-b border-line px-4 py-3 backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <button
             type="button"
@@ -763,14 +784,25 @@ export function RemindApp() {
             </span>
             <span className="text-lg font-bold tracking-tight">Re:Mind Me</span>
           </div>
-          <button
-            type="button"
-            aria-label="Search"
-            onClick={() => setShowSearch(true)}
-            className="flex size-11 items-center justify-center rounded-xl hover:bg-slate-100"
-          >
-            <Search size={20} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label={slumberMode ? "Switch to day mode" : "Switch to Slumber Mode"}
+              title={slumberOverride === null ? "Automatic Slumber Mode: 7 PM–7 AM. Click to override." : "Slumber Mode is manually overridden until reload."}
+              onClick={() => setSlumberOverride(!slumberMode)}
+              className="flex size-11 items-center justify-center rounded-xl text-ink/80 transition-colors hover:bg-black/5"
+            >
+              {slumberMode ? <Sun size={19} /> : <MoonStar size={19} />}
+            </button>
+            <button
+              type="button"
+              aria-label="Search"
+              onClick={() => setShowSearch(true)}
+              className="flex size-11 items-center justify-center rounded-xl hover:bg-black/5"
+            >
+              <Search size={20} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -778,13 +810,17 @@ export function RemindApp() {
         {tab === "dashboard" ? (
           <DashboardTab />
         ) : tab === "remind" ? (
-          <section className="anim-fade space-y-5 p-5">
-            <div className="pt-2 pb-1 text-center">
-              <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-brand text-white shadow-lg shadow-brand/30">
-                <Bell size={28} />
+          <section className="anim-fade space-y-5 p-5 capture-lane">
+            <div className="capture-hero pt-3 pb-2 text-center">
+              <div className={`thinking-orb ${canCompose ? "orb-awake" : ""} ${engagedChip ? "orb-catching" : ""}`} aria-hidden="true">
+                <span className="orb-glint orb-glint-one" />
+                <span className="orb-glint orb-glint-two" />
+                <span className="orb-core"><Sparkles size={25} strokeWidth={1.7} /></span>
               </div>
-              <h1 className="text-2xl font-bold">Set a reminder</h1>
-              <p className="mt-1 text-sm text-mute">Write it the way you'd say it.</p>
+              <p className="capture-eyebrow">A softer way to remember</p>
+              <h1 className="capture-heading">What's on your mind?</h1>
+              <p className="capture-subtitle">Leave it here. We'll bring it back at the right moment.</p>
+              <p className="capture-status"><span className="status-dot" /> {slumberMode ? "Slumber Mode · quiet focus" : "Your mind, a little less crowded"}</p>
             </div>
             <AttachmentRow photo={photo} video={video} onClearPhoto={() => setPhoto(null)} onClearVideo={() => setVideo(null)} />
             <div className="flex flex-wrap gap-2">
@@ -792,8 +828,12 @@ export function RemindApp() {
                 <button
                   key={chip.label}
                   type="button"
-                  onClick={() => setInput((prev) => (prev ? `${prev} ${chip.value}` : chip.value))}
-                  className="rounded-full bg-brand/10 px-3 py-2 text-xs font-semibold text-brand"
+                  onClick={() => {
+                    setEngagedChip(chip.label);
+                    setInput((prev) => (prev ? `${prev} ${chip.value}` : chip.value));
+                    window.setTimeout(() => setEngagedChip((active) => active === chip.label ? null : active), 520);
+                  }}
+                  className={`time-chip rounded-full bg-brand/10 px-3 py-2 text-xs font-semibold text-brand ${engagedChip === chip.label ? "time-chip-committing" : ""}`}
                 >
                   {chip.label}
                 </button>
@@ -804,10 +844,10 @@ export function RemindApp() {
               onChange={(event) => setInput(event.target.value)}
               rows={3}
               placeholder="Remind me tomorrow at 9 AM to meet at the office"
-              className="w-full resize-none rounded-2xl border border-line bg-white px-4 py-3 text-base shadow-sm outline-none focus:border-brand"
+              className="capture-input w-full resize-none rounded-2xl border border-line bg-white px-4 py-3 text-base shadow-sm outline-none focus:border-brand"
             />
             {listening && <p className="text-xs font-semibold text-blush">Listening… speak, then pause.</p>}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="capture-tools grid grid-cols-3 gap-2">
               <label className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-slate-100 text-sm font-medium">
                 <ImageIcon size={16} />
                 Photo
@@ -860,7 +900,7 @@ export function RemindApp() {
                   type="button"
                   onClick={() => void openDraft("reminder")}
                   disabled={!canCompose || busy}
-                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white shadow-md shadow-brand/25 disabled:bg-slate-300 disabled:shadow-none"
+                  className="commit-button flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white shadow-md shadow-brand/25 disabled:bg-slate-300 disabled:shadow-none"
                 >
                   {busy ? <span className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <Sparkles size={18} />}
                   {busy ? "Reading it…" : "Create reminder"}
@@ -873,7 +913,7 @@ export function RemindApp() {
             )}
           </section>
         ) : tab === "save" ? (
-          <section className="anim-fade p-5">
+          <section className="anim-fade p-5 save-lane">
             {selectedCategory === null && (
               <div className="space-y-5">
                 <div className="pt-2 text-center">
@@ -978,7 +1018,7 @@ export function RemindApp() {
             )}
           </section>
         ) : (
-          <section className="anim-fade space-y-4 p-5">
+          <section className="anim-fade space-y-4 p-5 list-lane">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold">My reminders</h2>
               <ViewToggle value={listView} onChange={setListView} />
