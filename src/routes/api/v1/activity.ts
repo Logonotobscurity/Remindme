@@ -17,8 +17,13 @@ const activitySchema = z.object({
   occurredAt: z.string().datetime({ offset: true }).optional(),
 }).strict();
 
+const calendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+  const parsed = new Date(value + "T00:00:00.000Z");
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+});
+
 const activityQuerySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: calendarDateSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
