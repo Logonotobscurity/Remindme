@@ -1,9 +1,7 @@
 import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
 import { requireUserId } from "@/lib/auth/verify.server";
 
-type ActivityAuthorization =
-  | { userId: string; response?: never }
-  | { userId?: never; response: Response };
+type ActivityAuthorization = { userId: string } | { response: Response };
 
 /**
  * REST handlers do not go through createServerFn middleware, so enforce the
