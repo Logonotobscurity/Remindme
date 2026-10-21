@@ -1,55 +1,69 @@
 import { createServerFileRoute } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { createActivity, listActivities, listPendingActions, listReminders } from "@/lib/activity/service";
+import { authorizeActivityRequest } from "@/lib/activity/api-auth.server";
+import { createActivity, listActivities } from "@/lib/activity/service";
 
 const activitySchema = z.object({
   source: z.enum(["claude", "grok", "chatgpt", "pwa", "log_on", "voice", "manual", "system"]),
-  project: z.string().optional(),
-  category: z.string().optional(),
-  title: z.string().min(1),
-  summary: z.string().optional(),
+  project: z.string().trim().max(120).optional(),
+  category: z.string().trim().max(80).optional(),
+  title: z.string().trim().min(1).max(240),
+  summary: z.string().trim().max(4000).optional(),
   activityType: z.enum(["research", "engineering", "decision", "idea", "meeting", "note", "reminder", "journal", "sync", "other"]).optional(),
-  sourceReference: z.string().optional(),
+  sourceReference: z.string().trim().min(1).max(500).optional(),
   captureMethod: z.enum(["mcp", "api", "import", "manual", "voice", "log_on", "automation"]).optional(),
   privacyLevel: z.enum(["public", "private", "internal"]).optional(),
   completionStatus: z.enum(["recorded", "in_progress", "completed", "archived"]).optional(),
-  occurredAt: z.string().optional(),
+  occurredAt: z.string().datetime({ offset: true }).optional(),
+}).strict();
+
+const activityQuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
 export const Route = createServerFileRoute("/api/v1/activity")({
   GET: async ({ request }) => {
+    const auth = await authorizeActivityRequest(request);
+    if ("response" in auth) return auth.response;
+
     const url = new URL(request.url);
-    const date = url.searchParams.get("date") ?? undefined;
-    const limit = Number(url.searchParams.get("limit") ?? "50");
-    const rows = await listActivities({ date, limit: Number.isFinite(limit) ? limit : 50 });
-    return Response.json(rows);
+    const query = activityQuerySchema.safeParse({
+      date: url.searchParams.get("date") ?? undefined,
+      limit: url.searchParams.get("limit") ?? undefined,
+    });
+    if (!query.success) {
+      return Response.json(
+        { error: "Invalid query. limit must be 1–100 and date must use YYYY-MM-DD." },
+        { status: 400 },
+      );
+    }
+
+    const rows = await listActivities(auth.userId, query.data);
+    return Response.json(rows, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   },
   POST: async ({ request }) => {
-    const payload = await request.json();
+    const auth = await authorizeActivityRequest(request);
+    if ("response" in auth) return auth.response;
+
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return Response.json({ error: "Request body must be valid JSON." }, { status: 400 });
+    }
+
     const parsed = activitySchema.safeParse(payload);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten() }, { status: 400 });
     }
-    const activityId = await createActivity(parsed.data);
-    return Response.json({ id: activityId }, { status: 201 });
-  },
-});
 
-export const ActionItemsRoute = createServerFileRoute("/api/v1/action-items")({
-  GET: async ({ request }) => {
-    const url = new URL(request.url);
-    const status = url.searchParams.get("status") ?? "pending";
-    const rows = await listPendingActions();
-    if (status !== "pending") return Response.json(rows);
-    return Response.json(rows);
-  },
-});
-
-export const RemindersRoute = createServerFileRoute("/api/v1/reminders")({
-  GET: async ({ request }) => {
-    const url = new URL(request.url);
-    const dueDate = url.searchParams.get("due_date") ?? undefined;
-    const rows = await listReminders({ dueDate });
-    return Response.json(rows);
+    const activityId = await createActivity(auth.userId, parsed.data);
+    return Response.json(
+      { id: activityId },
+      { status: 201, headers: { "Cache-Control": "no-store" } },
+    );
   },
 });
