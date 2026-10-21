@@ -645,7 +645,7 @@ export function RemindApp() {
       ...current,
       completed: false,
       status,
-      notified: status === "scheduled" || status === "overdue" ? current.notified : true,
+      notified: status === "scheduled" ? false : true,
     };
     const next = reminders.map((item) => item.id === id ? updated : item);
     setReminders(next);
@@ -802,7 +802,7 @@ export function RemindApp() {
     : saves;
   const categoryItems =
     selectedCategory && selectedCategory !== "manual" ? saves.filter((item) => item.category === selectedCategory) : saves;
-  const activeReminders = reminders.filter((item) => item.status !== "parked" && item.status !== "archived");
+  const activeReminders = reminders.filter((item) => item.status !== "parked" && item.status !== "archived" && item.status !== "overdue");
   const graveyardReminders = reminders.filter((item) =>
     item.status === "parked" || item.status === "archived" ||
     (!item.completed && (item.status === "overdue" || item.time <= Date.now())),
@@ -1844,7 +1844,7 @@ function SearchGroup({
 
 function NavButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: ReactNode; label: string }) {
   return (
-    <button type="button" onClick={onClick} className={`flex h-12 flex-1 items-center justify-center gap-2 rounded-xl text-xs font-semibold ${active ? "bg-brand text-white" : "text-mute"}`}>
+    <button type="button" onClick={onClick} className={`flex h-12 flex-1 items-center justify-center gap-1 rounded-xl text-[10px] font-semibold sm:gap-2 sm:text-xs ${active ? "bg-brand text-white" : "text-mute"}`}>
       {icon}
       {label}
     </button>
