@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Bell,
@@ -12,6 +12,9 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
+import { UserButton } from "@/lib/auth/gates";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { activityApiFetch } from "@/lib/activity/api-client";
 
 type DashboardItem = {
   id: number;
@@ -22,6 +25,7 @@ type DashboardItem = {
   status: "recorded" | "pending" | "completed";
   time: string;
   location?: string;
+  sortAt: string;
 };
 
 type ActivitySource = "claude" | "grok" | "chatgpt" | "pwa" | "log_on" | "voice" | "manual" | "system";
@@ -118,6 +122,7 @@ function toDashboardItemFromActivity(record: ActivityRecord, index: number): Das
     status,
     time: formatDisplayTime(record.occurred_at ?? record.created_at),
     location: record.project_name ?? undefined,
+    sortAt: record.occurred_at ?? record.created_at ?? "",
   };
 }
 
@@ -131,6 +136,7 @@ function toDashboardItemFromAction(record: ActionItemRecord, index: number): Das
     status: record.status === "completed" ? "completed" : "pending",
     time: formatDisplayTime(record.due_at ?? record.created_at),
     location: undefined,
+    sortAt: record.due_at ?? record.created_at ?? "",
   };
 }
 
@@ -144,6 +150,7 @@ function toDashboardItemFromReminder(record: ReminderRecord, index: number): Das
     status: record.status === "completed" ? "completed" : "pending",
     time: formatDisplayTime(record.due_at ?? record.created_at),
     location: undefined,
+    sortAt: record.due_at ?? record.created_at ?? "",
   };
 }
 
@@ -158,7 +165,9 @@ function buildDashboardData(
     ...reminders.map((record, index) => toDashboardItemFromReminder(record, index)),
   ];
 
-  return items.slice(0, 10);
+  return items
+    .sort((left, right) => (Date.parse(right.sortAt) || 0) - (Date.parse(left.sortAt) || 0))
+    .slice(0, 10);
 }
 
 function readRows(payload: unknown): unknown[] {
@@ -170,6 +179,7 @@ function readRows(payload: unknown): unknown[] {
 }
 
 export function DashboardTab() {
+  const { user, isPending: authPending } = useCurrentUserState();
   const [activeTab, setActiveTab] = useState<"reminders" | "dashboard">("dashboard");
   const [items, setItems] = useState<DashboardItem[]>([]);
   const [reminders, setReminders] = useState<ReminderRecord[]>([]);
@@ -179,16 +189,20 @@ export function DashboardTab() {
   const [form, setForm] = useState<ActivityFormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
 
-  async function loadDashboard() {
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
       const [activityRes, actionRes, reminderRes] = await Promise.all([
-        fetch(`/api/v1/activity?date=${today}&limit=10`),
-        fetch(`/api/v1/action-items?status=pending`),
-        fetch(`/api/v1/reminders?due_date=${today}`),
+        activityApiFetch("/api/v1/activity?limit=20"),
+        activityApiFetch("/api/v1/action-items?status=pending"),
+        activityApiFetch("/api/v1/reminders?due_date=" + today),
       ]);
 
-      if (!activityRes.ok || !actionRes.ok || !reminderRes.ok) {
+      if ([activityRes, actionRes, reminderRes].some((response) => response.status === 401)) {
+        throw new Error("AUTH_REQUIRED");
+      }
+      if ([activityRes, actionRes, reminderRes].some((response) => !response.ok)) {
         throw new Error("Dashboard API unavailable");
       }
 
@@ -206,19 +220,34 @@ export function DashboardTab() {
       setItems(buildDashboardData(activityRows, actionRows, reminderRows));
       setLoadError(false);
       setNotice(null);
-    } catch {
+    } catch (error) {
       setReminders([]);
       setItems([]);
       setLoadError(true);
-      setNotice("The live activity feed is unavailable. Your locally saved reminders still work.");
+      setNotice(
+        error instanceof Error && error.message === "AUTH_REQUIRED"
+          ? "Your session has expired. Sign in again to load your private activity."
+          : "The live activity feed is unavailable. Please try again shortly.",
+      );
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
+    if (authPending) {
+      setLoading(true);
+      return;
+    }
+    if (!user) {
+      setReminders([]);
+      setItems([]);
+      setLoadError(false);
+      setLoading(false);
+      return;
+    }
     void loadDashboard();
-  }, []);
+  }, [authPending, user?.id, loadDashboard]);
 
   const stats = useMemo(
     () => ({
@@ -253,7 +282,7 @@ export function DashboardTab() {
         occurredAt: new Date().toISOString(),
       };
 
-      const response = await fetch("/api/v1/activity", {
+      const response = await activityApiFetch("/api/v1/activity", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -276,6 +305,32 @@ export function DashboardTab() {
     }
   }
 
+  if (authPending) {
+    return (
+      <main className="grid min-h-[60vh] place-items-center bg-slate-100 px-4 text-slate-600">
+        <p role="status" className="rounded-2xl bg-white px-5 py-4 shadow-sm">Checking your session…</p>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="grid min-h-[60vh] place-items-center bg-slate-100 px-4 py-8 text-slate-900">
+        <section className="w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500">Re:Mind Me</p>
+          <h2 className="mt-2 text-xl font-bold">Sign in to see your private activity</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Your activity timeline, action items, and server-saved reminders are tied to your account.
+            Sign in to view and add records securely.
+          </p>
+          <a href="/login" className="mt-5 inline-flex rounded-2xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-700">
+            Sign in to continue
+          </a>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <div className="mx-auto max-w-md px-4 py-6">
@@ -289,6 +344,8 @@ export function DashboardTab() {
               <Sparkles className="h-5 w-5" />
             </div>
           </div>
+
+          <div className="mt-3 flex justify-end"><UserButton /></div>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             {tabs.map(({ id, label, icon: Icon }) => (
@@ -353,7 +410,7 @@ export function DashboardTab() {
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500">Timeline</p>
-                  <h2 className="text-lg font-bold">Today’s activity</h2>
+                  <h2 className="text-lg font-bold">Recent activity</h2>
                 </div>
                 <button
                   type="button"
@@ -376,7 +433,7 @@ export function DashboardTab() {
                   </div>
                 ) : items.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                    No activity recorded today yet. Add your first activity to begin building your daily memory.
+                    No activity recorded yet. Add your first entry to start building your daily memory.
                   </div>
                 ) : (
                   items.map((item) => (
