@@ -547,11 +547,25 @@ export function RemindApp() {
       const next = [item, ...reminders];
       setReminders(next);
       persistReminders(next);
+      captureActivity({
+        title: "Reminder restored: " + item.text,
+        summary: item.timeLabel,
+        category: "Reminder",
+        activityType: "reminder",
+        sourceReference: "remindme:reminder:" + item.id + ":restored:" + Date.now(),
+      });
     } else {
       const item = toast.undo.item as SaveItem;
       const next = [item, ...saves];
       setSaves(next);
       persistSaves(next);
+      captureActivity({
+        title: "Saved item restored: " + item.text,
+        summary: item.location ?? undefined,
+        category: "Saved item",
+        activityType: "note",
+        sourceReference: "remindme:save:" + item.id + ":restored:" + Date.now(),
+      });
     }
     setToast(null);
   };
@@ -609,6 +623,16 @@ export function RemindApp() {
       );
       setReminders(next);
       persistReminders(next);
+      const updated = next.find((item) => item.id === editing.id);
+      if (updated) {
+        captureActivity({
+          title: "Reminder updated: " + updated.text,
+          summary: [updated.timeLabel, updated.location].filter(Boolean).join(" • "),
+          category: "Reminder",
+          activityType: "reminder",
+          sourceReference: "remindme:reminder:" + updated.id + ":updated:" + Date.now(),
+        });
+      }
     } else {
       const next = saves.map((item) =>
         item.id === editing.id
@@ -617,6 +641,16 @@ export function RemindApp() {
       );
       setSaves(next);
       persistSaves(next);
+      const updated = next.find((item) => item.id === editing.id);
+      if (updated) {
+        captureActivity({
+          title: "Saved item updated: " + updated.text,
+          summary: updated.location ?? undefined,
+          category: "Saved item",
+          activityType: "note",
+          sourceReference: "remindme:save:" + updated.id + ":updated:" + Date.now(),
+        });
+      }
     }
     setEditing(null);
     flash("Changes saved");
