@@ -115,6 +115,8 @@ function MediaThumb({
 
 export function RemindApp() {
   const { user, isPending: authPending } = useCurrentUserState();
+  const storageScope = user?.id ?? "guest";
+  const [loadedScope, setLoadedScope] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("remind");
   const [input, setInput] = useState("");
@@ -188,18 +190,21 @@ export function RemindApp() {
   };
 
   useEffect(() => {
-    setReminders(loadReminders());
-    setSaves(loadSaves());
-    setCategories(loadCategories());
-    const stored = loadProfile();
+    if (authPending) return;
+    setReminders(loadReminders(storageScope));
+    setSaves(loadSaves(storageScope));
+    setCategories(loadCategories(storageScope));
+    const stored = loadProfile(storageScope);
     setProfile(stored);
     setNameDraft(stored?.name ?? "");
     setNotifyOn(typeof Notification !== "undefined" && Notification.permission === "granted");
+    setLoadedScope(storageScope);
     setReady(true);
-  }, []);
+  }, [authPending, storageScope]);
 
   useEffect(() => {
     const tick = () => {
+      if (authPending || loadedScope !== storageScope) return;
       const now = Date.now();
       const current = remindersRef.current;
       let changed = false;
@@ -219,13 +224,13 @@ export function RemindApp() {
       });
       if (changed) {
         setReminders(next);
-        persistReminders(next);
+        persistReminders(next, storageScope);
       }
     };
     tick();
     const id = window.setInterval(tick, 30000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [authPending, loadedScope, storageScope]);
 
   useEffect(() => {
     if (!toast) return;
@@ -392,7 +397,7 @@ export function RemindApp() {
     };
     const next = [item, ...reminders];
     setReminders(next);
-    persistReminders(next);
+    persistReminders(next, storageScope);
     captureActivity({
       title: "Reminder created: " + item.text,
       summary: [item.timeLabel, item.location].filter(Boolean).join(" • "),
@@ -425,7 +430,7 @@ export function RemindApp() {
     };
     const next = [item, ...saves];
     setSaves(next);
-    persistSaves(next);
+    persistSaves(next, storageScope);
     const name = categories.find((c) => c.id === draft.categoryId)?.name ?? "Saved";
     captureActivity({
       title: "Saved item: " + item.text,
@@ -467,7 +472,7 @@ export function RemindApp() {
     };
     const next = [item, ...reminders];
     setReminders(next);
-    persistReminders(next);
+    persistReminders(next, storageScope);
     captureActivity({
       title: "Reminder created: " + item.text,
       summary: [item.timeLabel, item.location].filter(Boolean).join(" • "),
@@ -497,7 +502,7 @@ export function RemindApp() {
     };
     const next = [item, ...saves];
     setSaves(next);
-    persistSaves(next);
+    persistSaves(next, storageScope);
     captureActivity({
       title: "Saved item: " + item.text,
       summary: [category.name, item.location].filter(Boolean).join(" • "),
@@ -516,7 +521,7 @@ export function RemindApp() {
       const item = reminders.find((r) => r.id === id);
       const next = reminders.filter((r) => r.id !== id);
       setReminders(next);
-      persistReminders(next);
+      persistReminders(next, storageScope);
       if (item) {
         if (canCaptureItem(item.activityOwnerId)) captureActivity({
           title: "Reminder deleted: " + item.text,
@@ -532,7 +537,7 @@ export function RemindApp() {
       const item = saves.find((s) => s.id === id);
       const next = saves.filter((s) => s.id !== id);
       setSaves(next);
-      persistSaves(next);
+      persistSaves(next, storageScope);
       if (item) {
         if (canCaptureItem(item.activityOwnerId)) captureActivity({
           title: "Saved item removed: " + item.text,
@@ -553,7 +558,7 @@ export function RemindApp() {
       const item = toast.undo.item as Reminder;
       const next = [item, ...reminders];
       setReminders(next);
-      persistReminders(next);
+      persistReminders(next, storageScope);
       if (canCaptureItem(item.activityOwnerId)) captureActivity({
         title: "Reminder restored: " + item.text,
         summary: item.timeLabel,
@@ -565,7 +570,7 @@ export function RemindApp() {
       const item = toast.undo.item as SaveItem;
       const next = [item, ...saves];
       setSaves(next);
-      persistSaves(next);
+      persistSaves(next, storageScope);
       if (canCaptureItem(item.activityOwnerId)) captureActivity({
         title: "Saved item restored: " + item.text,
         summary: item.location ?? undefined,
@@ -581,7 +586,7 @@ export function RemindApp() {
     const current = reminders.find((item) => item.id === id);
     const next = reminders.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item));
     setReminders(next);
-    persistReminders(next);
+    persistReminders(next, storageScope);
     if (current && canCaptureItem(current.activityOwnerId)) {
       const isCompleting = !current.completed;
       captureActivity({
@@ -629,7 +634,7 @@ export function RemindApp() {
           : item,
       );
       setReminders(next);
-      persistReminders(next);
+      persistReminders(next, storageScope);
       const updated = next.find((item) => item.id === editing.id);
       if (updated && canCaptureItem(updated.activityOwnerId)) {
         captureActivity({
@@ -647,7 +652,7 @@ export function RemindApp() {
           : item,
       );
       setSaves(next);
-      persistSaves(next);
+      persistSaves(next, storageScope);
       const updated = next.find((item) => item.id === editing.id);
       if (updated && canCaptureItem(updated.activityOwnerId)) {
         captureActivity({
@@ -669,14 +674,14 @@ export function RemindApp() {
     if (editingCategoryId) {
       const next = categories.map((cat) => (cat.id === editingCategoryId ? { ...cat, name, icon: newCategoryIcon } : cat));
       setCategories(next);
-      persistCategories(next);
+      persistCategories(next, storageScope);
     } else {
       const next = [
         ...categories,
         { id: `custom_${Date.now()}`, name, icon: newCategoryIcon, color: "#E5E7EB", custom: true },
       ];
       setCategories(next);
-      persistCategories(next);
+      persistCategories(next, storageScope);
     }
     setNewCategoryName("");
     setNewCategoryIcon("📌");
@@ -689,7 +694,7 @@ export function RemindApp() {
     if (!cat?.custom) return;
     const next = categories.filter((c) => c.id !== id);
     setCategories(next);
-    persistCategories(next);
+    persistCategories(next, storageScope);
     if (selectedCategory === id) setSelectedCategory(null);
   };
 
@@ -698,17 +703,17 @@ export function RemindApp() {
     if (!name) return;
     const next = { name };
     setProfile(next);
-    persistProfile(next);
+    persistProfile(next, storageScope);
   };
 
   const signOut = () => {
     setProfile(null);
     setNameDraft("");
-    persistProfile(null);
+    persistProfile(null, storageScope);
   };
 
   const wipe = () => {
-    clearAllData();
+    clearAllData(storageScope);
     setReminders([]);
     setSaves([]);
     setCategories(DEFAULT_CATEGORIES);
@@ -729,7 +734,7 @@ export function RemindApp() {
 
   const canCompose = Boolean(input.trim() || photo || video);
 
-  if (!ready) {
+  if (!ready || authPending || loadedScope !== storageScope) {
     return (
       <div className="flex h-dvh items-center justify-center bg-paper">
         <div className="flex flex-col items-center gap-3">
