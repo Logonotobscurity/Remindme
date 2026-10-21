@@ -84,6 +84,22 @@ const KEYS = {
   profile: "remindme.profile",
 } as const;
 
+/**
+ * Browser-local data is isolated by auth identity. The old unscoped keys remain
+ * the guest/device-only workspace and are never automatically assigned to the
+ * next account that signs in on a shared browser.
+ */
+function keysForScope(scope = "guest") {
+  if (scope === "guest") return KEYS;
+  const accountScope = encodeURIComponent(scope);
+  return {
+    reminders: KEYS.reminders + "." + accountScope,
+    saves: KEYS.saves + "." + accountScope,
+    categories: KEYS.categories + "." + accountScope,
+    profile: KEYS.profile + "." + accountScope,
+  };
+}
+
 function readJson<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
@@ -100,8 +116,8 @@ function writeJson(key: string, value: unknown) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-export function loadReminders(): Reminder[] {
-  return readJson<Reminder[]>(KEYS.reminders, []).map((item) => ({
+export function loadReminders(scope = "guest"): Reminder[] {
+  return readJson<Reminder[]>(keysForScope(scope).reminders, []).map((item) => ({
     ...item,
     mediaKind: item.mediaKind ?? inferKind(item.photo),
     completed: Boolean(item.completed),
@@ -109,41 +125,43 @@ export function loadReminders(): Reminder[] {
   }));
 }
 
-export function loadSaves(): SaveItem[] {
-  return readJson<SaveItem[]>(KEYS.saves, []).map((item) => ({
+export function loadSaves(scope = "guest"): SaveItem[] {
+  return readJson<SaveItem[]>(keysForScope(scope).saves, []).map((item) => ({
     ...item,
     mediaKind: item.mediaKind ?? inferKind(item.photo),
     location: item.location ?? null,
   }));
 }
 
-export function loadCategories(): Category[] {
-  const stored = readJson<Category[] | null>(KEYS.categories, null);
+export function loadCategories(scope = "guest"): Category[] {
+  const stored = readJson<Category[] | null>(keysForScope(scope).categories, null);
   if (!stored?.length) return DEFAULT_CATEGORIES;
   return stored;
 }
 
-export function loadProfile(): Profile | null {
-  return readJson<Profile | null>(KEYS.profile, null);
+export function loadProfile(scope = "guest"): Profile | null {
+  return readJson<Profile | null>(keysForScope(scope).profile, null);
 }
 
-export function persistReminders(items: Reminder[]) {
-  writeJson(KEYS.reminders, items);
+export function persistReminders(items: Reminder[], scope = "guest") {
+  writeJson(keysForScope(scope).reminders, items);
 }
-export function persistSaves(items: SaveItem[]) {
-  writeJson(KEYS.saves, items);
+export function persistSaves(items: SaveItem[], scope = "guest") {
+  writeJson(keysForScope(scope).saves, items);
 }
-export function persistCategories(items: Category[]) {
-  writeJson(KEYS.categories, items);
+export function persistCategories(items: Category[], scope = "guest") {
+  writeJson(keysForScope(scope).categories, items);
 }
-export function persistProfile(profile: Profile | null) {
-  if (!profile) localStorage.removeItem(KEYS.profile);
-  else writeJson(KEYS.profile, profile);
-}
-
-export function clearAllData() {
+export function persistProfile(profile: Profile | null, scope = "guest") {
+  const key = keysForScope(scope).profile;
   if (typeof window === "undefined") return;
-  Object.values(KEYS).forEach((key) => localStorage.removeItem(key));
+  if (!profile) localStorage.removeItem(key);
+  else writeJson(key, profile);
+}
+
+export function clearAllData(scope = "guest") {
+  if (typeof window === "undefined") return;
+  Object.values(keysForScope(scope)).forEach((key) => localStorage.removeItem(key));
 }
 
 export function inferKind(photo: string | null | undefined): MediaKind | null {
