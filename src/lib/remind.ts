@@ -267,9 +267,9 @@ export function parseReminder(inputText: string, photo: string | null, mediaKind
     hour = Math.min(23, Math.max(0, hour));
     minute = Math.min(59, Math.max(0, minute));
     date.setHours(hour, minute, 0, 0);
-    if (date.getTime() < now.getTime() - 30_000 && dateLabel === "Hari ini") {
+    if (date.getTime() < now.getTime() - 30_000 && dateLabel === "Today") {
       date.setDate(date.getDate() + 1);
-      dateLabel = "Besok";
+      dateLabel = "Tomorrow";
     }
   }
 
