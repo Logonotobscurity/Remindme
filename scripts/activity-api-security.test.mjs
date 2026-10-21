@@ -85,3 +85,19 @@ test("signed-in reminder and save actions emit private activity events", () => {
   assert.match(app, /remindme:save:/);
   assert.match(app, /if \(authPending \|\| !user\) return/);
 });
+
+test("local reminders, saves, categories, and profile are partitioned by account", () => {
+  const storage = read("src/lib/remind.ts");
+  assert.match(storage, /function keysForScope\(scope = "guest"\)/);
+  assert.match(storage, /encodeURIComponent\(scope\)/);
+  for (const fn of ["loadReminders", "loadSaves", "loadCategories", "loadProfile"]) {
+    assert.match(storage, new RegExp("function " + fn + "\\(scope = \"guest\"\\)"));
+  }
+  for (const fn of ["persistReminders", "persistSaves", "persistCategories", "persistProfile", "clearAllData"]) {
+    assert.match(storage, new RegExp("function " + fn + "[^\\n]*scope = \"guest\""));
+  }
+  const app = read("src/components/RemindApp.tsx");
+  assert.match(app, /loadedScope !== storageScope/);
+  assert.match(app, /loadReminders\(storageScope\)/);
+  assert.match(app, /persistReminders\(next, storageScope\)/);
+});
