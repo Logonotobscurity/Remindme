@@ -17,7 +17,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { activityApiFetch } from "@/lib/activity/api-client";
 
 type DashboardItem = {
-  id: number;
+  id: string;
   title: string;
   summary: string;
   source: string;
@@ -112,7 +112,7 @@ function toDashboardItemFromActivity(record: ActivityRecord, index: number): Das
   const source = (record.source ?? "system").toString();
 
   return {
-    id: record.id ?? index + 1,
+    id: "activity:" + (record.id ?? index + 1),
     title: record.title ?? "Untitled activity",
     summary:
       record.summary ??
@@ -128,7 +128,7 @@ function toDashboardItemFromActivity(record: ActivityRecord, index: number): Das
 
 function toDashboardItemFromAction(record: ActionItemRecord, index: number): DashboardItem {
   return {
-    id: record.id ?? index + 1000,
+    id: "action:" + (record.id ?? index + 1000),
     title: record.title ?? "Action item",
     summary: record.summary ?? "Pending follow-up from the current activity log.",
     source: "Action",
@@ -142,7 +142,7 @@ function toDashboardItemFromAction(record: ActionItemRecord, index: number): Das
 
 function toDashboardItemFromReminder(record: ReminderRecord, index: number): DashboardItem {
   return {
-    id: record.id ?? index + 2000,
+    id: "reminder:" + (record.id ?? index + 2000),
     title: record.title ?? "Reminder",
     summary: "Scheduled reminder due from the central activity system.",
     source: "Reminder",
@@ -165,9 +165,9 @@ function buildDashboardData(
     ...reminders.map((record, index) => toDashboardItemFromReminder(record, index)),
   ];
 
-  return items
-    .sort((left, right) => (Date.parse(right.sortAt) || 0) - (Date.parse(left.sortAt) || 0))
-    .slice(0, 10);
+  return items.sort(
+    (left, right) => (Date.parse(right.sortAt) || 0) - (Date.parse(left.sortAt) || 0),
+  );
 }
 
 function readRows(payload: unknown): unknown[] {
@@ -240,8 +240,11 @@ export function DashboardTab() {
       setLoading(true);
       return;
     }
+    setReminders([]);
+    setItems([]);
+    setNotice(null);
+    setLoadError(false);
     if (!userId) {
-      setReminders([]);
       setItems([]);
       setLoadError(false);
       setLoading(false);
@@ -437,7 +440,7 @@ export function DashboardTab() {
                     No activity recorded yet. Add your first entry to start building your daily memory.
                   </div>
                 ) : (
-                  items.map((item) => (
+                  items.slice(0, 10).map((item) => (
                     <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
