@@ -75,3 +75,13 @@ test("real sign-in is enabled and both Better Auth routes are mounted", () => {
   assert.ok(existsSync(join(root, "src/routes/api/auth/$.ts")));
   assert.ok(existsSync(join(root, "src/routes/login.tsx")));
 });
+
+test("signed-in reminder and save actions emit private activity events", () => {
+  const app = read("src/components/RemindApp.tsx");
+  assert.match(app, /useCurrentUserState/);
+  assert.match(app, /activityApiFetch\("\/api\/v1\/activity"/);
+  assert.match(app, /privacyLevel: "private"/);
+  assert.match(app, /remindme:reminder:/);
+  assert.match(app, /remindme:save:/);
+  assert.match(app, /if \(authPending \|\| !user\) return/);
+});
