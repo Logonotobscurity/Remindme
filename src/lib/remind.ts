@@ -20,6 +20,8 @@ export type Reminder = {
   completed: boolean;
   created: number;
   color: string;
+  /** Local-only owner marker for deciding which existing items may emit activity events. */
+  activityOwnerId?: string;
 };
 
 export type SaveItem = {
@@ -31,6 +33,8 @@ export type SaveItem = {
   category: string;
   created: number;
   color: string;
+  /** Local-only owner marker for deciding which existing items may emit activity events. */
+  activityOwnerId?: string;
 };
 
 export type Profile = {
