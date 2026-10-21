@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { activityApiFetch } from "@/lib/activity/api-client";
 import {
   Bell,
   Bookmark,
@@ -87,6 +89,15 @@ const SAVE_CHIPS = [
   { label: "Note", prefix: "note: " },
 ];
 
+type CapturedActivity = {
+  title: string;
+  summary?: string;
+  category: string;
+  activityType: "reminder" | "note";
+  sourceReference: string;
+  completionStatus?: "recorded" | "in_progress" | "completed" | "archived";
+};
+
 function MediaThumb({
   src,
   kind,
@@ -103,6 +114,7 @@ function MediaThumb({
 }
 
 export function RemindApp() {
+  const { user, isPending: authPending } = useCurrentUserState();
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("remind");
   const [input, setInput] = useState("");
@@ -145,6 +157,32 @@ export function RemindApp() {
   const streamRef = useRef<MediaStream | null>(null);
   const speechRef = useRef<{ stop: () => void } | null>(null);
   remindersRef.current = reminders;
+
+  // Local reminders and saved items remain usable offline. Only send new events
+  // when a real account session has resolved; never send a client-supplied user id.
+  // Existing browser-local items are intentionally not backfilled into whichever
+  // account signs in next.
+  const captureActivity = (event: CapturedActivity) => {
+    if (authPending || !user) return;
+    void activityApiFetch("/api/v1/activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: "pwa",
+        title: event.title,
+        summary: event.summary,
+        category: event.category,
+        activityType: event.activityType,
+        sourceReference: event.sourceReference,
+        captureMethod: "manual",
+        privacyLevel: "private",
+        completionStatus: event.completionStatus ?? "recorded",
+        occurredAt: new Date().toISOString(),
+      }),
+    }).catch(() => {
+      // Local capture must not fail just because the network or API is unavailable.
+    });
+  };
 
   useEffect(() => {
     setReminders(loadReminders());
@@ -351,6 +389,13 @@ export function RemindApp() {
     const next = [item, ...reminders];
     setReminders(next);
     persistReminders(next);
+    captureActivity({
+      title: "Reminder created: " + item.text,
+      summary: [item.timeLabel, item.location].filter(Boolean).join(" • "),
+      category: "Reminder",
+      activityType: "reminder",
+      sourceReference: "remindme:reminder:" + item.id + ":created",
+    });
     setDraft(null);
     resetComposer();
     popSuccess();
@@ -377,6 +422,13 @@ export function RemindApp() {
     setSaves(next);
     persistSaves(next);
     const name = categories.find((c) => c.id === draft.categoryId)?.name ?? "Saved";
+    captureActivity({
+      title: "Saved item: " + item.text,
+      summary: [name, item.location].filter(Boolean).join(" • "),
+      category: name,
+      activityType: "note",
+      sourceReference: "remindme:save:" + item.id + ":created",
+    });
     setDraft(null);
     resetComposer();
     popSuccess();
@@ -410,6 +462,13 @@ export function RemindApp() {
     const next = [item, ...reminders];
     setReminders(next);
     persistReminders(next);
+    captureActivity({
+      title: "Reminder created: " + item.text,
+      summary: [item.timeLabel, item.location].filter(Boolean).join(" • "),
+      category: "Reminder",
+      activityType: "reminder",
+      sourceReference: "remindme:reminder:" + item.id + ":created",
+    });
     resetComposer();
     popSuccess();
     flash("Reminder saved");
@@ -432,6 +491,13 @@ export function RemindApp() {
     const next = [item, ...saves];
     setSaves(next);
     persistSaves(next);
+    captureActivity({
+      title: "Saved item: " + item.text,
+      summary: [category.name, item.location].filter(Boolean).join(" • "),
+      category: category.name,
+      activityType: "note",
+      sourceReference: "remindme:save:" + item.id + ":created",
+    });
     resetComposer();
     setSelectedCategory(null);
     popSuccess();
@@ -444,13 +510,33 @@ export function RemindApp() {
       const next = reminders.filter((r) => r.id !== id);
       setReminders(next);
       persistReminders(next);
-      if (item) flash("Reminder deleted", { type, item });
+      if (item) {
+        captureActivity({
+          title: "Reminder deleted: " + item.text,
+          summary: "Removed from the local reminder list.",
+          category: "Reminder",
+          activityType: "reminder",
+          completionStatus: "completed",
+          sourceReference: "remindme:reminder:" + item.id + ":deleted:" + Date.now(),
+        });
+        flash("Reminder deleted", { type, item });
+      }
     } else {
       const item = saves.find((s) => s.id === id);
       const next = saves.filter((s) => s.id !== id);
       setSaves(next);
       persistSaves(next);
-      if (item) flash("Item deleted", { type, item });
+      if (item) {
+        captureActivity({
+          title: "Saved item removed: " + item.text,
+          summary: "Removed from the local saved-items list.",
+          category: "Saved item",
+          activityType: "note",
+          completionStatus: "completed",
+          sourceReference: "remindme:save:" + item.id + ":deleted:" + Date.now(),
+        });
+        flash("Item deleted", { type, item });
+      }
     }
   };
 
@@ -471,9 +557,21 @@ export function RemindApp() {
   };
 
   const toggleDone = (id: number) => {
+    const current = reminders.find((item) => item.id === id);
     const next = reminders.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item));
     setReminders(next);
     persistReminders(next);
+    if (current) {
+      const isCompleting = !current.completed;
+      captureActivity({
+        title: (isCompleting ? "Reminder completed: " : "Reminder reopened: ") + current.text,
+        summary: current.timeLabel,
+        category: "Reminder",
+        activityType: "reminder",
+        completionStatus: isCompleting ? "completed" : "in_progress",
+        sourceReference: "remindme:reminder:" + current.id + ":" + (isCompleting ? "completed:" : "reopened:") + Date.now(),
+      });
+    }
   };
 
   const beginEdit = (item: Reminder | SaveItem, type: "reminder" | "save") => {
