@@ -69,8 +69,6 @@ type ActivityFormState = {
   completionStatus: ActivityStatus;
 };
 
-const fallbackDashboard: DashboardItem[] = [];
-
 const tabs = [
   { id: "reminders", label: "Reminders", icon: Bell },
   { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
