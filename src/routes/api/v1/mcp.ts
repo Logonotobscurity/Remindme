@@ -328,16 +328,38 @@ export const Route = createServerFileRoute("/api/v1/mcp")({
 
     let bodyText: string;
     try {
-      bodyText = await request.text();
+      const reader = request.body?.getReader();
+      const chunks: Uint8Array[] = [];
+      let byteLength = 0;
+      if (reader) {
+        try {
+          while (true) {
+            const part = await reader.read();
+            if (part.done) break;
+            byteLength += part.value.byteLength;
+            if (byteLength > MAX_BODY_BYTES) {
+              await reader.cancel("MCP request exceeds the body limit").catch(() => undefined);
+              return Response.json({ error: "MCP request exceeds the 64 KB limit." }, {
+                status: 413,
+                headers: { "Cache-Control": "no-store" },
+              });
+            }
+            chunks.push(part.value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      }
+      const bytes = new Uint8Array(byteLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      bodyText = new TextDecoder().decode(bytes);
     } catch {
       return Response.json({ error: "Could not read MCP request body." }, {
         status: 400,
-        headers: { "Cache-Control": "no-store" },
-      });
-    }
-    if (new TextEncoder().encode(bodyText).byteLength > MAX_BODY_BYTES) {
-      return Response.json({ error: "MCP request exceeds the 64 KB limit." }, {
-        status: 413,
         headers: { "Cache-Control": "no-store" },
       });
     }
