@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { getSql } from "@/lib/db";
 import {
   isValidOAuthRedirectUri,
@@ -9,7 +9,7 @@ import {
 } from "./mcp-oauth-policy.mjs";
 
 export const MCP_OAUTH_SCOPES = ["activity:read", "activity:write", "offline_access"] as const;
-export type OAuthClientAuthMethod = "none" | "client_secret_basic" | "client_secret_post";
+export type McpOAuthScope = "activity:read" | "activity:write" | "offline_access";\nexport type OAuthClientAuthMethod = "none" | "client_secret_basic" | "client_secret_post";
 export type OAuthApplicationType = "web" | "native";
 
 export type OAuthClient = {
