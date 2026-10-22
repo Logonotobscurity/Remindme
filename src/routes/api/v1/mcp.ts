@@ -114,6 +114,34 @@ function toolError(message: string) {
   return { isError: true, content: [{ type: "text", text: message }] };
 }
 
+function scopeForTool(name: string): "activity:read" | "activity:write" | null {
+  if (["capture_activity", "capture_decision", "capture_action_item"].includes(name)) return "activity:write";
+  if (["search_memory", "get_daily_summary"].includes(name)) return "activity:read";
+  return null;
+}
+
+function toolsForScopes(scopes: string[]) {
+  return TOOLS.filter((tool) => {
+    const required = scopeForTool(tool.name);
+    return required === null || scopes.includes(required);
+  });
+}
+
+function insufficientScopeResponse(request: Request, scope: string) {
+  const url = new URL(request.url);
+  const metadata = new URL("/.well-known/oauth-protected-resource/api/v1/mcp", url.origin).href;
+  return Response.json(
+    { error: "insufficient_scope", error_description: "This MCP token does not grant " + scope + "." },
+    {
+      status: 403,
+      headers: {
+        "Cache-Control": "no-store",
+        "WWW-Authenticate": `Bearer error="insufficient_scope", scope="${scope}", resource_metadata="${metadata}"`,
+      },
+    },
+  );
+}
+
 const TOOLS = [
   {
     name: "capture_activity",
@@ -195,7 +223,7 @@ const TOOLS = [
 async function callTool(
   name: string,
   rawArguments: unknown,
-  principal: { userId: string; source: McpSource },
+  principal: { userId: string; source: McpSource; scopes: string[] },
 ) {
   const args = rawArguments && typeof rawArguments === "object" && !Array.isArray(rawArguments)
     ? rawArguments
@@ -347,7 +375,7 @@ export const Route = createServerFileRoute("/api/v1/mcp")({
         status: 401,
         headers: {
           "Cache-Control": "no-store",
-          "WWW-Authenticate": 'Bearer realm="Re:Mind Me MCP"',
+          "WWW-Authenticate": `Bearer realm="Re:Mind Me MCP", resource_metadata="${new URL("/.well-known/oauth-protected-resource/api/v1/mcp", new URL(request.url).origin).href}"`,
         },
       });
     }
@@ -466,7 +494,7 @@ export const Route = createServerFileRoute("/api/v1/mcp")({
 
       if (message.method === "tools/list") {
         return rpcResponse(id, {
-          tools: TOOLS,
+          tools: toolsForScopes(principal.scopes),
           ttlMs: 0,
           cacheScope: "private",
         }, negotiated, true);
@@ -474,10 +502,15 @@ export const Route = createServerFileRoute("/api/v1/mcp")({
 
       if (message.method === "tools/call") {
         const name = typeof params.name === "string" ? params.name : "";
+        const requiredScope = scopeForTool(name);
+        if (requiredScope && !principal.scopes.includes(requiredScope)) {
+          return insufficientScopeResponse(request, requiredScope);
+        }
         try {
           const result = await callTool(name, params.arguments, {
             userId: principal.userId,
             source: principal.source,
+            scopes: principal.scopes,
           });
           return rpcResponse(id, result, negotiated, true);
         } catch (error) {
@@ -511,15 +544,20 @@ export const Route = createServerFileRoute("/api/v1/mcp")({
     if (message.method === "ping") return rpcResponse(id, {}, negotiated);
 
     if (message.method === "tools/list") {
-      return rpcResponse(id, { tools: TOOLS }, negotiated);
+      return rpcResponse(id, { tools: toolsForScopes(principal.scopes) }, negotiated);
     }
 
     if (message.method === "tools/call") {
       const name = typeof params.name === "string" ? params.name : "";
+      const requiredScope = scopeForTool(name);
+      if (requiredScope && !principal.scopes.includes(requiredScope)) {
+        return insufficientScopeResponse(request, requiredScope);
+      }
       try {
         const result = await callTool(name, params.arguments, {
           userId: principal.userId,
           source: principal.source,
+          scopes: principal.scopes,
         });
         return rpcResponse(id, result, negotiated);
       } catch (error) {
