@@ -12,7 +12,26 @@ function Login() {
     setBusyProvider(providerId);
     setError(null);
     try {
-      await signIn(providerId, { callbackURL: "/" });
+      // MCP OAuth sign-in returns to the original authorization request. Only
+      // accept the exact same-origin authorize route; never accept an external
+      // callback or an arbitrary client-controlled redirect here.
+      const rawReturnTo = new URLSearchParams(window.location.search).get("returnTo");
+      let callbackURL = "/";
+      if (rawReturnTo && rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//") && !rawReturnTo.includes("\\\\")) {
+        try {
+          const candidate = new URL(rawReturnTo, window.location.origin);
+          if (
+            candidate.origin === window.location.origin &&
+            candidate.pathname === "/oauth/authorize" &&
+            !candidate.hash
+          ) {
+            callbackURL = candidate.pathname + candidate.search;
+          }
+        } catch {
+          callbackURL = "/";
+        }
+      }
+      await signIn(providerId, { callbackURL });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sign-in failed. Please try again.");
       setBusyProvider(null);
