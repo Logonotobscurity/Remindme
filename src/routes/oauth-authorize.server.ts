@@ -2,6 +2,7 @@ import { createServerFileRoute } from "@tanstack/react-start/server";
 import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
 import { getSessionUser } from "@/lib/auth/verify.server";
 import {
+  canonicalMcpResource,
   consumeOAuthConsentRequest,
   createOAuthAuthorizationCode,
   createOAuthConsentRequest,
@@ -10,12 +11,8 @@ import {
   htmlEscape,
   type McpOAuthScope,
 } from "@/lib/activity/mcp-oauth.server";
-import { canonicalMcpResource } from "@/lib/activity/mcp-oauth.server";
-import {
-  normalizeOAuthScopes,
-  scopesAreSubset,
-  sha256Hex,
-} from "@/lib/activity/mcp-oauth-policy.mjs";
+import { MCP_SOURCES, type McpSource } from "@/lib/activity/mcp-access.server";
+import { normalizeOAuthScopes, scopesAreSubset } from "@/lib/activity/mcp-oauth-policy.mjs";
 
 const SCOPE_LABELS: Record<McpOAuthScope, { title: string; description: string }> = {
   "activity:read": {
@@ -66,7 +63,20 @@ function loginRedirect(requestUrl: URL) {
   return Response.redirect(target.toString(), 302);
 }
 
+function suggestedSource(clientName: string): McpSource {
+  const label = clientName.toLowerCase().replace(/[^a-z0-9]+/g, " ");
+  if (/\bclaude\b/.test(label)) return "claude";
+  if (/\b(chatgpt|openai)\b/.test(label)) return "chatgpt";
+  if (/\bgrok\b/.test(label)) return "grok";
+  if (/\blog on\b/.test(label)) return "log_on";
+  return "manual";
+}
+
 function consentPage(clientName: string, requestToken: string, requestedScopes: McpOAuthScope[]) {
+  const preferredSource = suggestedSource(clientName);
+  const sourceOptions = MCP_SOURCES.map((source) =>
+    `<option value="${source}" ${source === preferredSource ? "selected" : ""}>${source === "log_on" ? "LOG_ON" : source.charAt(0).toUpperCase() + source.slice(1)}</option>`
+  ).join("");
   const options = (Object.keys(SCOPE_LABELS) as McpOAuthScope[])
     .filter((scope) => requestedScopes.includes(scope))
     .map((scope) => {
@@ -100,6 +110,8 @@ button{min-height:48px;border-radius:14px;border:1px solid #14141224;padding:10p
 <div class="brand">Re:Mind Me · Secure connection</div>
 <h1>Connect ${htmlEscape(clientName)}?</h1>
 <p>This client is requesting access to your private activity memory. Review exactly what it can do before approving.</p>
+<h2>Activity source label</h2>
+<label class="scope"><span><strong>Attribute captured work to</strong><small>This label is saved with the activity. You can change it when approving another connection.</small><select name="source" style="display:block;width:100%;margin-top:8px;border:1px solid #14141224;border-radius:10px;padding:10px;background:#fffdf7">${sourceOptions}</select></span></label>
 <h2>Requested permissions</h2>
 <form method="post" action="/oauth/authorize">
 <input type="hidden" name="consent_token" value="${htmlEscape(requestToken)}">
@@ -216,6 +228,10 @@ export const Route = createServerFileRoute("/oauth/authorize")({
 
     const requestedScopes = Array.isArray(consent.scopes) ? consent.scopes : [];
     const selectedScopes = form.getAll("scope").filter((value): value is string => typeof value === "string");
+    const sourceValue = form.get("source");
+    if (typeof sourceValue !== "string" || !MCP_SOURCES.includes(sourceValue as McpSource)) {
+      return jsonError("invalid_request", "Choose a valid activity source attribution.", 400);
+    }
     if (!scopesAreSubset(selectedScopes, requestedScopes)) {
       return jsonError("invalid_scope", "Choose one or more of the permissions originally requested.", 400);
     }
@@ -235,6 +251,7 @@ export const Route = createServerFileRoute("/oauth/authorize")({
       resource: consent.resource,
       codeChallenge: consent.code_challenge,
       scopes,
+      source: sourceValue as McpSource,
     });
     const destination = new URL(consent.redirect_uri);
     destination.searchParams.set("code", code);
