@@ -39,6 +39,7 @@ import {
   type MediaKind,
   type Profile,
   type Reminder,
+  type ReminderStatus,
   type SaveItem,
   clearAllData,
   combineDateTime,
@@ -641,7 +642,7 @@ export function RemindApp() {
   const changeReminderStatus = (id: number, target: "scheduled" | "parked" | "archived") => {
     const current = reminders.find((item) => item.id === id);
     if (!current) return;
-    const status = target === "scheduled" && current.time <= Date.now() ? "overdue" : target;
+    const status: ReminderStatus = target === "scheduled" && current.time <= Date.now() ? "overdue" : target;
     const updated = {
       ...current,
       completed: false,

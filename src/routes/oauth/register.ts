@@ -1,4 +1,4 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { registerOAuthClient, type OAuthApplicationType, type OAuthClientAuthMethod } from "@/lib/activity/mcp-oauth.server";
 
@@ -35,7 +35,9 @@ function inferredApplicationType(redirectUris: string[]): OAuthApplicationType {
   }) ? "native" : "web";
 }
 
-export const Route = createServerFileRoute("/oauth/register")({
+export const Route = createFileRoute("/oauth/register")({
+  server: {
+    handlers: {
   GET: async () => new Response("OAuth Dynamic Client Registration requires POST.", {
     status: 405,
     headers: { Allow: "POST", "Cache-Control": "no-store" },
@@ -89,6 +91,7 @@ export const Route = createServerFileRoute("/oauth/register")({
         redirectUris,
         authMethod,
         applicationType,
+        grantTypes,
       });
       return Response.json(client, {
         status: 201,
@@ -101,5 +104,7 @@ export const Route = createServerFileRoute("/oauth/register")({
       }
       return jsonError("invalid_client_metadata", "Client metadata failed validation.");
     }
+  },
+    },
   },
 });

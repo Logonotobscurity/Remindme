@@ -1,4 +1,4 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { authorizeActivityRequest } from "@/lib/activity/api-auth.server";
 import { listReminders } from "@/lib/activity/service";
@@ -8,7 +8,9 @@ const dueDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => 
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 });
 
-export const Route = createServerFileRoute("/api/v1/reminders")({
+export const Route = createFileRoute("/api/v1/reminders")({
+  server: {
+    handlers: {
   GET: async ({ request }) => {
     const auth = await authorizeActivityRequest(request);
     if ("response" in auth) return auth.response;
@@ -26,5 +28,7 @@ export const Route = createServerFileRoute("/api/v1/reminders")({
     return Response.json(rows, {
       headers: { "Cache-Control": "private, no-store" },
     });
+  },
+    },
   },
 });

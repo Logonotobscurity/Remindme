@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS oauth_authorization_codes (
   resource TEXT NOT NULL,
   code_challenge TEXT NOT NULL,
   scopes JSONB NOT NULL,
+  source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('claude', 'chatgpt', 'grok', 'log_on', 'manual')),
   expires_at TIMESTAMPTZ NOT NULL,
   consumed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -1,6 +1,8 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createServerFileRoute("/.well-known/oauth-protected-resource/api/v1/mcp")({
+export const Route = createFileRoute("/.well-known/oauth-protected-resource/api/v1/mcp")({
+  server: {
+    handlers: {
   GET: async ({ request }) => {
     const origin = new URL(request.url).origin;
     return Response.json({
@@ -15,5 +17,7 @@ export const Route = createServerFileRoute("/.well-known/oauth-protected-resourc
         "Content-Type": "application/json",
       },
     });
+  },
+    },
   },
 });

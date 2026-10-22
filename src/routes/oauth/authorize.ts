@@ -1,4 +1,4 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
 import { getSessionUser } from "@/lib/auth/verify.server";
 import {
@@ -127,7 +127,9 @@ ${options || "<p>No permissions were selected. Restart the connection from your 
 </html>`);
 }
 
-export const Route = createServerFileRoute("/oauth/authorize")({
+export const Route = createFileRoute("/oauth/authorize")({
+  server: {
+    handlers: {
   GET: async ({ request }) => {
     const url = new URL(request.url);
     const clientId = url.searchParams.get("client_id") ?? "";
@@ -258,5 +260,7 @@ export const Route = createServerFileRoute("/oauth/authorize")({
     destination.searchParams.set("state", consent.state);
     destination.searchParams.set("iss", new URL(request.url).origin);
     return Response.redirect(destination.toString(), 302);
+  },
+    },
   },
 });

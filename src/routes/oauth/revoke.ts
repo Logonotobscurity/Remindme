@@ -1,4 +1,4 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 import { findOAuthClient, revokeOAuthToken, validateOAuthClientSecret } from "@/lib/activity/mcp-oauth.server";
 
 function noStore(body: unknown, status = 200, extraHeaders?: HeadersInit) {
@@ -25,7 +25,9 @@ function parseBasic(request: Request) {
   }
 }
 
-export const Route = createServerFileRoute("/oauth/revoke")({
+export const Route = createFileRoute("/oauth/revoke")({
+  server: {
+    handlers: {
   GET: async () => new Response("OAuth token revocation requires POST.", {
     status: 405,
     headers: { Allow: "POST", "Cache-Control": "no-store" },
@@ -80,5 +82,7 @@ export const Route = createServerFileRoute("/oauth/revoke")({
       }
     }
     return noStore(null, 200);
+  },
+    },
   },
 });

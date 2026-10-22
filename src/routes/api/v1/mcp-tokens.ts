@@ -1,4 +1,4 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { authorizeActivityRequest } from "@/lib/activity/api-auth.server";
 import {
@@ -21,7 +21,9 @@ const actionSchema = z.discriminatedUnion("action", [
   }).strict(),
 ]);
 
-export const Route = createServerFileRoute("/api/v1/mcp-tokens")({
+export const Route = createFileRoute("/api/v1/mcp-tokens")({
+  server: {
+    handlers: {
   GET: async ({ request }) => {
     const auth = await authorizeActivityRequest(request);
     if ("response" in auth) return auth.response;
@@ -89,5 +91,7 @@ export const Route = createServerFileRoute("/api/v1/mcp-tokens")({
         { status: 503, headers: { "Cache-Control": "no-store" } },
       );
     }
+  },
+    },
   },
 });

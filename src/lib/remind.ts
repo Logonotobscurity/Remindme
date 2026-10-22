@@ -407,7 +407,7 @@ export function parseSave(inputText: string, photo: string | null, mediaKind: Me
     if (/\b(lokasi|tempat|place|location)\b/i.test(text)) categoryId = "place";
     if (!original && (photo || mediaKind)) categoryId = "photos";
     else if ((photo || mediaKind) && categoryId === "other") categoryId = "photos";
-    clean = original.replace(/^(save|simpan|ide|idea|catatan|note|lokasi|place|location)\s*[:\-]?\s*/i, "").trim();
+    clean = original.replace(/^(save|simpan|ide|idea|catatan|note|lokasi|place|location)\s*[:-]?\s*/i, "").trim();
     const loc = clean.match(/\b(?:di|at)\s+([A-Za-z0-9][A-Za-z0-9\s.'-]{1,40})$/i);
     if (loc && categoryId === "place") {
       location = titleCase(loc[1].trim());

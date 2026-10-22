@@ -10,33 +10,208 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
+import { Route as OauthAuthorizeRouteImport } from './routes/oauth/authorize'
+import { Route as OauthRegisterRouteImport } from './routes/oauth/register'
+import { Route as OauthRevokeRouteImport } from './routes/oauth/revoke'
+import { Route as OauthTokenRouteImport } from './routes/oauth/token'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiV1ActionItemsRouteImport } from './routes/api/v1/action-items'
+import { Route as ApiV1ActivityRouteImport } from './routes/api/v1/activity'
+import { Route as ApiV1McpRouteImport } from './routes/api/v1/mcp'
+import { Route as ApiV1McpTokensRouteImport } from './routes/api/v1/mcp-tokens'
+import { Route as ApiV1RemindersRouteImport } from './routes/api/v1/reminders'
+import { Route as DotwellKnownOauthProtectedResourceApiV1McpRouteImport } from './routes/[.]well-known/oauth-protected-resource/api/v1/mcp'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotwellKnownOauthAuthorizationServerRoute =
+  DotwellKnownOauthAuthorizationServerRouteImport.update({
+    id: '/.well-known/oauth-authorization-server',
+    path: '/.well-known/oauth-authorization-server',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const OauthAuthorizeRoute = OauthAuthorizeRouteImport.update({
+  id: '/oauth/authorize',
+  path: '/oauth/authorize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthRegisterRoute = OauthRegisterRouteImport.update({
+  id: '/oauth/register',
+  path: '/oauth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthRevokeRoute = OauthRevokeRouteImport.update({
+  id: '/oauth/revoke',
+  path: '/oauth/revoke',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthTokenRoute = OauthTokenRouteImport.update({
+  id: '/oauth/token',
+  path: '/oauth/token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ActionItemsRoute = ApiV1ActionItemsRouteImport.update({
+  id: '/api/v1/action-items',
+  path: '/api/v1/action-items',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ActivityRoute = ApiV1ActivityRouteImport.update({
+  id: '/api/v1/activity',
+  path: '/api/v1/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1McpRoute = ApiV1McpRouteImport.update({
+  id: '/api/v1/mcp',
+  path: '/api/v1/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1McpTokensRoute = ApiV1McpTokensRouteImport.update({
+  id: '/api/v1/mcp-tokens',
+  path: '/api/v1/mcp-tokens',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1RemindersRoute = ApiV1RemindersRouteImport.update({
+  id: '/api/v1/reminders',
+  path: '/api/v1/reminders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotwellKnownOauthProtectedResourceApiV1McpRoute =
+  DotwellKnownOauthProtectedResourceApiV1McpRouteImport.update({
+    id: '/.well-known/oauth-protected-resource/api/v1/mcp',
+    path: '/.well-known/oauth-protected-resource/api/v1/mcp',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/oauth/register': typeof OauthRegisterRoute
+  '/oauth/revoke': typeof OauthRevokeRoute
+  '/oauth/token': typeof OauthTokenRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/v1/action-items': typeof ApiV1ActionItemsRoute
+  '/api/v1/activity': typeof ApiV1ActivityRoute
+  '/api/v1/mcp': typeof ApiV1McpRoute
+  '/api/v1/mcp-tokens': typeof ApiV1McpTokensRoute
+  '/api/v1/reminders': typeof ApiV1RemindersRoute
+  '/.well-known/oauth-protected-resource/api/v1/mcp': typeof DotwellKnownOauthProtectedResourceApiV1McpRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/oauth/register': typeof OauthRegisterRoute
+  '/oauth/revoke': typeof OauthRevokeRoute
+  '/oauth/token': typeof OauthTokenRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/v1/action-items': typeof ApiV1ActionItemsRoute
+  '/api/v1/activity': typeof ApiV1ActivityRoute
+  '/api/v1/mcp': typeof ApiV1McpRoute
+  '/api/v1/mcp-tokens': typeof ApiV1McpTokensRoute
+  '/api/v1/reminders': typeof ApiV1RemindersRoute
+  '/.well-known/oauth-protected-resource/api/v1/mcp': typeof DotwellKnownOauthProtectedResourceApiV1McpRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/oauth/register': typeof OauthRegisterRoute
+  '/oauth/revoke': typeof OauthRevokeRoute
+  '/oauth/token': typeof OauthTokenRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/v1/action-items': typeof ApiV1ActionItemsRoute
+  '/api/v1/activity': typeof ApiV1ActivityRoute
+  '/api/v1/mcp': typeof ApiV1McpRoute
+  '/api/v1/mcp-tokens': typeof ApiV1McpTokensRoute
+  '/api/v1/reminders': typeof ApiV1RemindersRoute
+  '/.well-known/oauth-protected-resource/api/v1/mcp': typeof DotwellKnownOauthProtectedResourceApiV1McpRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/.well-known/oauth-authorization-server'
+    | '/oauth/authorize'
+    | '/oauth/register'
+    | '/oauth/revoke'
+    | '/oauth/token'
+    | '/api/auth/$'
+    | '/api/v1/action-items'
+    | '/api/v1/activity'
+    | '/api/v1/mcp'
+    | '/api/v1/mcp-tokens'
+    | '/api/v1/reminders'
+    | '/.well-known/oauth-protected-resource/api/v1/mcp'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/login'
+    | '/.well-known/oauth-authorization-server'
+    | '/oauth/authorize'
+    | '/oauth/register'
+    | '/oauth/revoke'
+    | '/oauth/token'
+    | '/api/auth/$'
+    | '/api/v1/action-items'
+    | '/api/v1/activity'
+    | '/api/v1/mcp'
+    | '/api/v1/mcp-tokens'
+    | '/api/v1/reminders'
+    | '/.well-known/oauth-protected-resource/api/v1/mcp'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/.well-known/oauth-authorization-server'
+    | '/oauth/authorize'
+    | '/oauth/register'
+    | '/oauth/revoke'
+    | '/oauth/token'
+    | '/api/auth/$'
+    | '/api/v1/action-items'
+    | '/api/v1/activity'
+    | '/api/v1/mcp'
+    | '/api/v1/mcp-tokens'
+    | '/api/v1/reminders'
+    | '/.well-known/oauth-protected-resource/api/v1/mcp'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LoginRoute: typeof LoginRoute
+  DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
+  OauthAuthorizeRoute: typeof OauthAuthorizeRoute
+  OauthRegisterRoute: typeof OauthRegisterRoute
+  OauthRevokeRoute: typeof OauthRevokeRoute
+  OauthTokenRoute: typeof OauthTokenRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiV1ActionItemsRoute: typeof ApiV1ActionItemsRoute
+  ApiV1ActivityRoute: typeof ApiV1ActivityRoute
+  ApiV1McpRoute: typeof ApiV1McpRoute
+  ApiV1McpTokensRoute: typeof ApiV1McpTokensRoute
+  ApiV1RemindersRoute: typeof ApiV1RemindersRoute
+  DotwellKnownOauthProtectedResourceApiV1McpRoute: typeof DotwellKnownOauthProtectedResourceApiV1McpRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +223,117 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-authorization-server': {
+      id: '/.well-known/oauth-authorization-server'
+      path: '/.well-known/oauth-authorization-server'
+      fullPath: '/.well-known/oauth-authorization-server'
+      preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/authorize': {
+      id: '/oauth/authorize'
+      path: '/oauth/authorize'
+      fullPath: '/oauth/authorize'
+      preLoaderRoute: typeof OauthAuthorizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/register': {
+      id: '/oauth/register'
+      path: '/oauth/register'
+      fullPath: '/oauth/register'
+      preLoaderRoute: typeof OauthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/revoke': {
+      id: '/oauth/revoke'
+      path: '/oauth/revoke'
+      fullPath: '/oauth/revoke'
+      preLoaderRoute: typeof OauthRevokeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/token': {
+      id: '/oauth/token'
+      path: '/oauth/token'
+      fullPath: '/oauth/token'
+      preLoaderRoute: typeof OauthTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/action-items': {
+      id: '/api/v1/action-items'
+      path: '/api/v1/action-items'
+      fullPath: '/api/v1/action-items'
+      preLoaderRoute: typeof ApiV1ActionItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/activity': {
+      id: '/api/v1/activity'
+      path: '/api/v1/activity'
+      fullPath: '/api/v1/activity'
+      preLoaderRoute: typeof ApiV1ActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/mcp': {
+      id: '/api/v1/mcp'
+      path: '/api/v1/mcp'
+      fullPath: '/api/v1/mcp'
+      preLoaderRoute: typeof ApiV1McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/mcp-tokens': {
+      id: '/api/v1/mcp-tokens'
+      path: '/api/v1/mcp-tokens'
+      fullPath: '/api/v1/mcp-tokens'
+      preLoaderRoute: typeof ApiV1McpTokensRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/reminders': {
+      id: '/api/v1/reminders'
+      path: '/api/v1/reminders'
+      fullPath: '/api/v1/reminders'
+      preLoaderRoute: typeof ApiV1RemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-protected-resource/api/v1/mcp': {
+      id: '/.well-known/oauth-protected-resource/api/v1/mcp'
+      path: '/.well-known/oauth-protected-resource/api/v1/mcp'
+      fullPath: '/.well-known/oauth-protected-resource/api/v1/mcp'
+      preLoaderRoute: typeof DotwellKnownOauthProtectedResourceApiV1McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LoginRoute: LoginRoute,
+  DotwellKnownOauthAuthorizationServerRoute:
+    DotwellKnownOauthAuthorizationServerRoute,
+  OauthAuthorizeRoute: OauthAuthorizeRoute,
+  OauthRegisterRoute: OauthRegisterRoute,
+  OauthRevokeRoute: OauthRevokeRoute,
+  OauthTokenRoute: OauthTokenRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiV1ActionItemsRoute: ApiV1ActionItemsRoute,
+  ApiV1ActivityRoute: ApiV1ActivityRoute,
+  ApiV1McpRoute: ApiV1McpRoute,
+  ApiV1McpTokensRoute: ApiV1McpTokensRoute,
+  ApiV1RemindersRoute: ApiV1RemindersRoute,
+  DotwellKnownOauthProtectedResourceApiV1McpRoute:
+    DotwellKnownOauthProtectedResourceApiV1McpRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

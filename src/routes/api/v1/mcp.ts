@@ -1,4 +1,4 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { authenticateMcpToken, type McpSource } from "@/lib/activity/mcp-access.server";
 import {
@@ -319,7 +319,9 @@ async function callTool(
   }
 }
 
-export const Route = createServerFileRoute("/api/v1/mcp")({
+export const Route = createFileRoute("/api/v1/mcp")({
+  server: {
+    handlers: {
   GET: async () => new Response("MCP Streamable HTTP accepts POST requests only.", {
     status: 405,
     headers: { Allow: "POST", "Cache-Control": "no-store" },
@@ -567,5 +569,7 @@ export const Route = createServerFileRoute("/api/v1/mcp")({
     }
 
     return rpcError(id, -32601, "Method not found", 200, negotiated);
+  },
+    },
   },
 });

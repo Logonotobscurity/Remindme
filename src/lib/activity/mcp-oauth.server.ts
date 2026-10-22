@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { getSql } from "@/lib/db";
+import type { McpSource } from "@/lib/activity/mcp-access.server";
 import {
   isValidOAuthRedirectUri,
   normalizeOAuthScopes,
@@ -209,7 +210,6 @@ export type OAuthConsentRequest = {
   resource: string;
   code_challenge: string;
   scopes: McpOAuthScope[] | string;
-  source: McpSource;
   expires_at: string;
   consumed_at: string | null;
 };
@@ -250,6 +250,7 @@ export async function createOAuthAuthorizationCode(input: {
   resource: string;
   codeChallenge: string;
   scopes: McpOAuthScope[];
+  source: McpSource;
 }) {
   const sql = await getSql();
   const code = newOpaqueToken("rmm_ac_");
@@ -280,6 +281,7 @@ export type OAuthAuthorizationCode = {
   resource: string;
   code_challenge: string;
   scopes: McpOAuthScope[] | string;
+  source: McpSource;
   expires_at: string;
   consumed_at: string | null;
 };
@@ -415,10 +417,12 @@ export async function rotateOAuthRefreshToken(input: {
     [tokenHash, input.clientId],
   );
   const row = rows[0];
-  if (!row || row.revoked_at || new Date(row.expires_at).getTime() <= Date.now()) return null;
+  if (!row || new Date(row.expires_at).getTime() <= Date.now()) return null;
 
   if (row.used_at) {
     // Detected refresh-token replay: revoke this family and its live access tokens.
+    // Rotation marks the presented token used and revoked, so this must run
+    // before the revoked-token short circuit or reuse would look like a no-op.
     await sql.query(
       "UPDATE oauth_refresh_tokens SET revoked_at = NOW() WHERE family_id = $1 AND client_id = $2",
       [row.family_id, input.clientId],
@@ -429,6 +433,8 @@ export async function rotateOAuthRefreshToken(input: {
     );
     return null;
   }
+
+  if (row.revoked_at) return null;
 
   const scopes = jsonScope(row.scopes);
   const requested = input.requestedScopes;

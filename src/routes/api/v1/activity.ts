@@ -1,4 +1,4 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { authorizeActivityRequest } from "@/lib/activity/api-auth.server";
 import { createActivity, listActivities } from "@/lib/activity/service";
@@ -27,7 +27,9 @@ const activityQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
-export const Route = createServerFileRoute("/api/v1/activity")({
+export const Route = createFileRoute("/api/v1/activity")({
+  server: {
+    handlers: {
   GET: async ({ request }) => {
     const auth = await authorizeActivityRequest(request);
     if ("response" in auth) return auth.response;
@@ -70,5 +72,7 @@ export const Route = createServerFileRoute("/api/v1/activity")({
       { id: activityId },
       { status: 201, headers: { "Cache-Control": "no-store" } },
     );
+  },
+    },
   },
 });

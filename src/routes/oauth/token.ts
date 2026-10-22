@@ -1,4 +1,4 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 import { canonicalMcpResource, findOAuthClient, issueOAuthTokens, rotateOAuthRefreshToken, validateOAuthClientSecret, validResourceValue } from "@/lib/activity/mcp-oauth.server";
 import { normalizeOAuthScopes } from "@/lib/activity/mcp-oauth-policy.mjs";
 
@@ -83,7 +83,9 @@ async function authenticateClient(request: Request, form: URLSearchParams) {
   return { client, error: null };
 }
 
-export const Route = createServerFileRoute("/oauth/token")({
+export const Route = createFileRoute("/oauth/token")({
+  server: {
+    handlers: {
   GET: async () => new Response("OAuth token endpoint requires POST.", {
     status: 405,
     headers: { Allow: "POST", "Cache-Control": "no-store" },
@@ -109,7 +111,7 @@ export const Route = createServerFileRoute("/oauth/token")({
 
     const resource = form.get("resource");
     const canonical = canonicalMcpResource(request.url);
-    if (!validResourceValue(resource, canonical)) {
+    if (!resource || !validResourceValue(resource, canonical)) {
       return tokenError("invalid_target", 400, "The resource parameter must match this MCP server's canonical URL.");
     }
 
@@ -136,6 +138,7 @@ export const Route = createServerFileRoute("/oauth/token")({
           clientId: client.client_id,
           resource,
           scopes: authorization.scopes,
+          source: authorization.source,
         });
         return Response.json(tokens, {
           headers: { "Cache-Control": "no-store", Pragma: "no-cache" },
@@ -171,5 +174,7 @@ export const Route = createServerFileRoute("/oauth/token")({
       console.error("[mcp-oauth] Token issuance failed", error);
       return tokenError("server_error", 500);
     }
+  },
+    },
   },
 });

@@ -9,11 +9,13 @@ export const MCP_OAUTH_SCOPE_VALUES = Object.freeze([
 ]);
 
 /** Return a lowercase SHA-256 digest for opaque OAuth credential storage. */
+/** @param {string} value */
 export function sha256Hex(value) {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 /** RFC 7636 S256 challenge verification. Only the S256 method is supported. */
+/** @param {string} verifier @param {string} challenge */
 export function pkceMatches(verifier, challenge) {
   if (typeof verifier !== "string" || typeof challenge !== "string") return false;
   if (!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) return false;
@@ -26,9 +28,10 @@ export function pkceMatches(verifier, challenge) {
  * OAuth redirect URI validation. Exact URI matching is performed again during
  * authorization and code exchange; wildcards are never accepted.
  */
+/** @param {string} value @param {"web" | "native"} [applicationType] */
 export function isValidOAuthRedirectUri(value, applicationType = "web") {
   if (typeof value !== "string" || value.length < 1 || value.length > 2048) return false;
-  if (/[\u0000-\u0020\\]/.test(value)) return false;
+  if ([...value].some((character) => character <= " " || character === "\\")) return false;
   let url;
   try {
     url = new URL(value);
@@ -59,6 +62,7 @@ export function isValidOAuthRedirectUri(value, applicationType = "web") {
  * Normalize and validate a requested OAuth scope string.
  * Empty scope defaults to read-only. Unknown scopes fail closed.
  */
+/** @param {string | null | undefined} value @param {string} [defaultScope] @returns {McpOAuthScope[]} */
 export function normalizeOAuthScopes(value, defaultScope = "activity:read") {
   const raw = typeof value === "string" && value.trim() ? value.trim() : defaultScope;
   const values = [...new Set(raw.split(/\s+/).filter(Boolean))];
@@ -68,10 +72,11 @@ export function normalizeOAuthScopes(value, defaultScope = "activity:read") {
   if (values.includes("offline_access") && values.length === 1) {
     throw new Error("invalid_scope");
   }
-  return values;
+  return /** @type {McpOAuthScope[]} */ (values);
 }
 
 /** Check that a granted scope list is a subset of the originally requested list. */
+/** @param {string[]} selected @param {string[]} requested */
 export function scopesAreSubset(selected, requested) {
   return Array.isArray(selected) && Array.isArray(requested) &&
     selected.length > 0 &&
@@ -79,6 +84,7 @@ export function scopesAreSubset(selected, requested) {
 }
 
 /** Canonicalize an MCP resource URI and reject query, fragment, credentials, or non-HTTPS production origins. */
+/** @param {string} value @returns {string | null} */
 export function canonicalResource(value) {
   if (typeof value !== "string" || value.length > 2048) return null;
   try {

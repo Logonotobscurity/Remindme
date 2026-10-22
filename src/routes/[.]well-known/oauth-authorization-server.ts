@@ -1,6 +1,8 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createServerFileRoute("/.well-known/oauth-authorization-server")({
+export const Route = createFileRoute("/.well-known/oauth-authorization-server")({
+  server: {
+    handlers: {
   GET: async ({ request }) => {
     const origin = new URL(request.url).origin;
     return Response.json({
@@ -23,5 +25,7 @@ export const Route = createServerFileRoute("/.well-known/oauth-authorization-ser
         "Content-Type": "application/json",
       },
     });
+  },
+    },
   },
 });
