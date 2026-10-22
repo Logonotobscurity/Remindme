@@ -247,9 +247,11 @@ async function callTool(
         listActivities(principal.userId, { date, limit: 100 }),
         listPendingActions(principal.userId, "pending"),
       ]);
-      const dueActions = pendingActions.filter((action) =>
-        typeof action.due_at === "string" && action.due_at.slice(0, 10) === date,
-      );
+      const dueActions = pendingActions.filter((action) => {
+        const dueAt = action.due_at;
+        if (dueAt instanceof Date) return dueAt.toISOString().slice(0, 10) === date;
+        return typeof dueAt === "string" && dueAt.slice(0, 10) === date;
+      });
       return toolResult({
         date,
         dateBasis: parsed.data.date ? "requested calendar date" : "UTC fallback; pass a local date for timezone accuracy",
