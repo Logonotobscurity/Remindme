@@ -890,7 +890,11 @@ export function RemindApp() {
                     <article key={item.id} className="graveyard-item flex flex-col gap-3 rounded-2xl border border-line p-4 sm:flex-row sm:items-center" style={{ backgroundColor: item.color === "#ffffff" ? "var(--color-surface)" : item.color }}>
                       <div className="min-w-0 flex-1"><div className="mb-2 flex flex-wrap items-center gap-2"><span className="graveyard-status">{label}</span><span className="text-xs text-mute">{item.timeLabel}</span></div><p className={item.completed ? "font-medium line-through opacity-60" : "font-medium"}>{item.text}</p>{item.location && <p className="mt-1 text-xs text-mute">{item.location}</p>}</div>
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => changeReminderStatus(item.id, "scheduled")} className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-moss px-3 text-sm font-semibold text-white"><RotateCcw size={15} /> Bring back</button>
+                        {item.time <= Date.now() ? (
+                          <button type="button" onClick={() => beginEdit(item, "reminder")} className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-moss px-3 text-sm font-semibold text-white"><Pencil size={15} /> Reschedule</button>
+                        ) : (
+                          <button type="button" onClick={() => changeReminderStatus(item.id, "scheduled")} className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-moss px-3 text-sm font-semibold text-white"><RotateCcw size={15} /> Bring back</button>
+                        )}
                         <button type="button" onClick={() => removeItem(item.id, "reminder")} className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-line px-3 text-sm font-semibold"><Trash2 size={15} /> Delete</button>
                       </div>
                     </article>
