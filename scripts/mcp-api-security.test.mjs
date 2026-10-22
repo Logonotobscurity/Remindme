@@ -61,3 +61,24 @@ test("settings exposes the endpoint and revocation controls without embedding to
   assert.match(settings, /Copy secret token/);
   assert.match(settings, /Token is only displayed once|secret is only displayed once|only displayed once/);
 });
+
+test("MCP endpoint supports the current stateless 2026 protocol", () => {
+  const route = read("src/routes/api/v1/mcp.ts");
+  assert.match(route, /CURRENT_PROTOCOL = "2026-07-28"/);
+  assert.match(route, /message\.method === "server\/discover"/);
+  assert.match(route, /io\.modelcontextprotocol\/protocolVersion/);
+  assert.match(route, /io\.modelcontextprotocol\/clientCapabilities/);
+  assert.match(route, /request\.headers\.get\("mcp-method"\)/);
+  assert.match(route, /request\.headers\.get\("mcp-name"\)/);
+  assert.match(route, /-32020/);
+  assert.match(route, /resultType: "complete"/);
+  assert.match(route, /ttlMs: 0/);
+  assert.match(route, /cacheScope: "private"/);
+});
+
+test("MCP HTTP endpoint validates explicit Origin values", () => {
+  const route = read("src/routes/api/v1/mcp.ts");
+  assert.match(route, /request\.headers\.get\("origin"\)/);
+  assert.match(route, /parsedOrigin\.origin !== new URL\(request\.url\)\.origin/);
+  assert.match(route, /status: 403/);
+});
