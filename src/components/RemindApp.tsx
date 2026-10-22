@@ -61,6 +61,7 @@ import {
   toDateInput,
 } from "@/lib/remind";
 import { DashboardTab } from "./DashboardTab";
+import { McpIntegrationSettings } from "./McpIntegrationSettings";
 
 type Tab = "remind" | "save" | "reminder" | "graveyard" | "dashboard";
 type SpeechCtor = new () => {
@@ -1448,8 +1449,9 @@ export function RemindApp() {
             <Bell size={18} className={notifyOn ? "text-brand" : "text-mute"} />
           </button>
           <p className="mt-4 text-sm leading-relaxed text-mute">
-            Reminders and saves stay in this browser. They are not uploaded, and clearing site data removes them.
+            Reminders and saved items stay in this browser. Activity you explicitly capture through an AI connector is stored privately in your account.
           </p>
+          <McpIntegrationSettings />
           <button type="button" onClick={wipe} className="mt-6 h-12 w-full rounded-2xl bg-blush/10 font-semibold text-blush">
             Clear all data
           </button>
