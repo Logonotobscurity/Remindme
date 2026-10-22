@@ -5,11 +5,11 @@ import {
   normalizeOAuthScopes,
   pkceMatches,
   sha256Hex,
-  type McpOAuthScope,
 } from "./mcp-oauth-policy.mjs";
 
 export const MCP_OAUTH_SCOPES = ["activity:read", "activity:write", "offline_access"] as const;
-export type McpOAuthScope = "activity:read" | "activity:write" | "offline_access";\nexport type OAuthClientAuthMethod = "none" | "client_secret_basic" | "client_secret_post";
+export type McpOAuthScope = "activity:read" | "activity:write" | "offline_access";
+export type OAuthClientAuthMethod = "none" | "client_secret_basic" | "client_secret_post";
 export type OAuthApplicationType = "web" | "native";
 
 export type OAuthClient = {
@@ -203,6 +203,7 @@ export type OAuthConsentRequest = {
   resource: string;
   code_challenge: string;
   scopes: McpOAuthScope[] | string;
+  source: McpSource;
   expires_at: string;
   consumed_at: string | null;
 };
@@ -249,8 +250,8 @@ export async function createOAuthAuthorizationCode(input: {
   await sql.query(
     [
       "INSERT INTO oauth_authorization_codes (code_hash, user_id, client_id, redirect_uri,",
-      "  resource, code_challenge, scopes, expires_at)",
-      "VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, NOW() + INTERVAL '5 minutes')",
+      "  resource, code_challenge, scopes, source, expires_at)",
+      "VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, NOW() + INTERVAL '5 minutes')",
     ].join("\n"),
     [
       sha256Hex(code),
@@ -260,6 +261,7 @@ export async function createOAuthAuthorizationCode(input: {
       input.resource,
       input.codeChallenge,
       JSON.stringify(input.scopes),
+      input.source,
     ],
   );
   return code;
@@ -286,7 +288,7 @@ export async function consumeOAuthAuthorizationCode(input: {
   const sql = await getSql();
   const rows = await sql.query<OAuthAuthorizationCode>(
     [
-      "SELECT user_id, client_id, redirect_uri, resource, code_challenge, scopes, expires_at, consumed_at",
+      "SELECT user_id, client_id, redirect_uri, resource, code_challenge, scopes, source, expires_at, consumed_at",
       "FROM oauth_authorization_codes",
       "WHERE code_hash = $1 AND client_id = $2 AND redirect_uri = $3 AND resource = $4",
       "  AND expires_at > NOW() AND consumed_at IS NULL",
@@ -314,16 +316,30 @@ export async function issueOAuthTokens(input: {
   clientId: string;
   resource: string;
   scopes: McpOAuthScope[];
+  source: McpSource;
   familyId?: string;
 }) {
   const sql = await getSql();
   const familyId = input.familyId ?? randomUUID();
   const accessToken = newOpaqueToken("rmm_oat_");
   const expiresIn = 3600;
+
+  if (!input.familyId) {
+    await sql.query(
+      [
+        "INSERT INTO oauth_user_grants (user_id, client_id, source, scopes)",
+        "VALUES ($1, $2, $3, $4::jsonb)",
+        "ON CONFLICT (user_id, client_id) DO UPDATE SET",
+        "  source = EXCLUDED.source, scopes = EXCLUDED.scopes,",
+        "  updated_at = NOW(), revoked_at = NULL",
+      ].join("\n"),
+      [input.userId, input.clientId, input.source, JSON.stringify(input.scopes)],
+    );
+  }
   await sql.query(
     [
-      "INSERT INTO oauth_access_tokens (token_hash, user_id, client_id, resource, scopes, family_id, expires_at)",
-      "VALUES ($1, $2, $3, $4, $5::jsonb, $6, NOW() + ($7 * INTERVAL '1 second'))",
+      "INSERT INTO oauth_access_tokens (token_hash, user_id, client_id, resource, scopes, source, family_id, expires_at)",
+      "VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, NOW() + ($8 * INTERVAL '1 second'))",
     ].join("\n"),
     [
       sha256Hex(accessToken),
@@ -331,6 +347,7 @@ export async function issueOAuthTokens(input: {
       input.clientId,
       input.resource,
       JSON.stringify(input.scopes.filter((scope) => scope !== "offline_access")),
+      input.source,
       familyId,
       expiresIn,
     ],
@@ -342,8 +359,8 @@ export async function issueOAuthTokens(input: {
     refreshToken = newOpaqueToken("rmm_ort_");
     await sql.query(
       [
-        "INSERT INTO oauth_refresh_tokens (token_hash, user_id, client_id, resource, scopes, family_id, expires_at)",
-        "VALUES ($1, $2, $3, $4, $5::jsonb, $6, NOW() + INTERVAL '30 days')",
+        "INSERT INTO oauth_refresh_tokens (token_hash, user_id, client_id, resource, scopes, source, family_id, expires_at)",
+        "VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, NOW() + INTERVAL '30 days')",
       ].join("\n"),
       [
         sha256Hex(refreshToken),
@@ -351,6 +368,7 @@ export async function issueOAuthTokens(input: {
         input.clientId,
         input.resource,
         JSON.stringify(input.scopes),
+        input.source,
         familyId,
       ],
     );
@@ -378,13 +396,14 @@ export async function rotateOAuthRefreshToken(input: {
     client_id: string;
     resource: string;
     scopes: McpOAuthScope[] | string;
+    source: McpSource;
     family_id: string;
     expires_at: string;
     used_at: string | null;
     revoked_at: string | null;
   }>(
     [
-      "SELECT user_id, client_id, resource, scopes, family_id, expires_at, used_at, revoked_at",
+      "SELECT user_id, client_id, resource, scopes, source, family_id, expires_at, used_at, revoked_at",
       "FROM oauth_refresh_tokens WHERE token_hash = $1 AND client_id = $2 LIMIT 1",
     ].join("\n"),
     [tokenHash, input.clientId],
@@ -425,6 +444,7 @@ export async function rotateOAuthRefreshToken(input: {
     clientId: row.client_id,
     resource: row.resource,
     scopes: requested ? normalizeOAuthScopes(requested.join(" ")) : scopes,
+    source: row.source,
     familyId: row.family_id,
   });
 }
