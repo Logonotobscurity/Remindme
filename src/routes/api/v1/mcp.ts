@@ -452,12 +452,6 @@ export const Route = createServerFileRoute("/api/v1/mcp")({
           Array.isArray(meta["io.modelcontextprotocol/clientCapabilities"])) {
         return rpcError(id, -32600, "Modern MCP requests must declare clientCapabilities in params._meta.", 400, CURRENT_PROTOCOL);
       }
-      if (!SUPPORTED_PROTOCOLS.has(bodyProtocol)) {
-        return rpcError(id, -32022, "Unsupported MCP protocol version.", 400, CURRENT_PROTOCOL, {
-          supported: [...SUPPORTED_PROTOCOLS],
-          requested: bodyProtocol,
-        });
-      }
       negotiated = CURRENT_PROTOCOL;
 
       if (message.method === "server/discover") {
