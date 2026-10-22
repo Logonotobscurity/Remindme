@@ -88,14 +88,58 @@ export type McpTokenPrincipal = {
   tokenId: number;
   userId: string;
   source: McpSource;
+  scopes: string[];
+  authMethod: "personal_token" | "oauth";
 };
 
-/** Validate an MCP bearer token without exposing whether a particular user exists. */
+function parseScopes(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/** Validate either a user-managed personal token or a resource-bound OAuth token. */
 export async function authenticateMcpToken(request: Request): Promise<McpTokenPrincipal | null> {
   const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(\S+)$/i)?.[1];
-  if (!bearer || !/^rmm_[A-Za-z0-9_-]{40,60}$/.test(bearer)) return null;
+  if (!bearer || !/^rmm_[A-Za-z0-9_-]{40,80}$/.test(bearer)) return null;
 
   const sql = await getSql();
+  if (bearer.startsWith("rmm_oat_")) {
+    const url = new URL(request.url);
+    const resource = url.origin + url.pathname;
+    const rows = await sql.query<{
+      id: number;
+      user_id: string;
+      source: McpSource;
+      scopes: unknown;
+    }>(
+      [
+        "SELECT id, user_id, source, scopes",
+        "FROM oauth_access_tokens",
+        "WHERE token_hash = $1 AND resource = $2",
+        "  AND revoked_at IS NULL AND expires_at > NOW()",
+        "LIMIT 1",
+      ].join("\n"),
+      [hashToken(bearer), resource],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      tokenId: row.id,
+      userId: row.user_id,
+      source: row.source,
+      scopes: parseScopes(row.scopes),
+      authMethod: "oauth",
+    };
+  }
+
   const rows = await sql.query<{ id: number; user_id: string; source: McpSource }>(
     [
       "SELECT id, user_id, source",
@@ -118,5 +162,11 @@ export async function authenticateMcpToken(request: Request): Promise<McpTokenPr
     [row.id],
   );
 
-  return { tokenId: row.id, userId: row.user_id, source: row.source };
+  return {
+    tokenId: row.id,
+    userId: row.user_id,
+    source: row.source,
+    scopes: ["activity:read", "activity:write"],
+    authMethod: "personal_token",
+  };
 }
