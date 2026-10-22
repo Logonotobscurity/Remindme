@@ -113,6 +113,7 @@ export async function registerOAuthClient(input: {
   redirectUris: string[];
   authMethod: OAuthClientAuthMethod;
   applicationType: OAuthApplicationType;
+  grantTypes: ("authorization_code" | "refresh_token")[];
 }) {
   if (!input.clientName.trim() || input.clientName.trim().length > 120) {
     throw new Error("invalid_client_metadata");
@@ -130,6 +131,11 @@ export async function registerOAuthClient(input: {
   const clientId = "rmm_client_" + randomBytes(24).toString("base64url");
   const clientSecret = input.authMethod === "none" ? null : newOpaqueToken("rmm_cs_");
   const clientSecretHash = clientSecret ? sha256Hex(clientSecret) : null;
+  if (!input.grantTypes.includes("authorization_code") ||
+      input.grantTypes.some((grant) => !["authorization_code", "refresh_token"].includes(grant))) {
+    throw new Error("invalid_client_metadata");
+  }
+  const grantTypes = [...new Set(input.grantTypes)];
   const rows = await sql.query<{ created_at: string }>(
     [
       "INSERT INTO oauth_clients (client_id, client_secret_hash, client_name, redirect_uris,",
@@ -142,7 +148,7 @@ export async function registerOAuthClient(input: {
       clientSecretHash,
       input.clientName.trim(),
       JSON.stringify(uniqueUris),
-      JSON.stringify(["authorization_code", "refresh_token"]),
+      JSON.stringify(grantTypes),
       JSON.stringify(["code"]),
       input.authMethod,
       input.applicationType,
@@ -152,7 +158,7 @@ export async function registerOAuthClient(input: {
     client_id: clientId,
     client_name: input.clientName.trim(),
     redirect_uris: uniqueUris,
-    grant_types: ["authorization_code", "refresh_token"],
+    grant_types: grantTypes,
     response_types: ["code"],
     token_endpoint_auth_method: input.authMethod,
     application_type: input.applicationType,
