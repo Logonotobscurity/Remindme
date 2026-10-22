@@ -52,7 +52,7 @@ export function isValidOAuthRedirectUri(value, applicationType = "web") {
   // such as "myapp:" from being registered by unrelated apps.
   if (applicationType !== "native" || !/^[a-z][a-z0-9+.-]*:$/.test(url.protocol)) return false;
   const scheme = url.protocol.slice(0, -1);
-  return scheme.includes(".") && !url.origin.includes("null") && value.length > scheme.length + 1;
+  return scheme.includes(".") && value.length > scheme.length + 1;
 }
 
 /**
