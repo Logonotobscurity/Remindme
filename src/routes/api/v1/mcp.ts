@@ -10,7 +10,10 @@ import {
   upsertMcpActionItem,
 } from "@/lib/activity/service";
 
-const SUPPORTED_PROTOCOLS = new Set(["2025-11-25", "2025-06-18", "2025-03-26"]);
+const CURRENT_PROTOCOL = "2026-07-28";
+const LEGACY_PROTOCOLS = new Set(["2025-11-25", "2025-06-18", "2025-03-26"]);
+const SUPPORTED_PROTOCOLS = new Set([CURRENT_PROTOCOL, ...LEGACY_PROTOCOLS]);
+const SERVER_INFO = { name: "remindme-activity-memory", version: "1.1.0" };
 const MAX_BODY_BYTES = 64 * 1024;
 
 const captureActivitySchema = z.object({
@@ -67,16 +70,37 @@ function responseHeaders(protocolVersion?: string) {
   return headers;
 }
 
-function rpcResponse(id: JsonRpcId, result: unknown, protocolVersion?: string) {
+function rpcResponse(id: JsonRpcId, result: unknown, protocolVersion?: string, modern = false) {
+  const normalizedResult =
+    modern && result && typeof result === "object" && !Array.isArray(result)
+      ? {
+          resultType: "complete",
+          ...(result as Record<string, unknown>),
+          _meta: {
+            ...((result as Record<string, unknown>)._meta &&
+            typeof (result as Record<string, unknown>)._meta === "object"
+              ? (result as Record<string, unknown>)._meta as Record<string, unknown>
+              : {}),
+            "io.modelcontextprotocol/serverInfo": SERVER_INFO,
+          },
+        }
+      : result;
   return Response.json(
-    { jsonrpc: "2.0", id, result },
+    { jsonrpc: "2.0", id, result: normalizedResult },
     { headers: responseHeaders(protocolVersion) },
   );
 }
 
-function rpcError(id: JsonRpcId | null, code: number, message: string, status = 200, protocolVersion?: string) {
+function rpcError(
+  id: JsonRpcId | null,
+  code: number,
+  message: string,
+  status = 200,
+  protocolVersion?: string,
+  data?: unknown,
+) {
   return Response.json(
-    { jsonrpc: "2.0", id, error: { code, message } },
+    { jsonrpc: "2.0", id, error: { code, message, ...(data === undefined ? {} : { data }) } },
     { status, headers: responseHeaders(protocolVersion) },
   );
 }
@@ -274,6 +298,22 @@ export const Route = createServerFileRoute("/api/v1/mcp")({
   }),
 
   POST: async ({ request }) => {
+    const origin = request.headers.get("origin");
+    if (origin) {
+      let parsedOrigin: URL | null = null;
+      try {
+        parsedOrigin = new URL(origin);
+      } catch {
+        parsedOrigin = null;
+      }
+      if (!parsedOrigin || parsedOrigin.origin !== new URL(request.url).origin) {
+        return Response.json({ error: "Origin is not allowed." }, {
+          status: 403,
+          headers: { "Cache-Control": "no-store", Vary: "Origin" },
+        });
+      }
+    }
+
     const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
     if (contentType !== "application/json") {
       return Response.json({ error: "Content-Type must be application/json." }, {
@@ -291,12 +331,6 @@ export const Route = createServerFileRoute("/api/v1/mcp")({
     }
 
     const protocolHeader = request.headers.get("MCP-Protocol-Version");
-    if (protocolHeader && !SUPPORTED_PROTOCOLS.has(protocolHeader)) {
-      return Response.json({ error: "Unsupported MCP protocol version." }, {
-        status: 400,
-        headers: { "Cache-Control": "no-store" },
-      });
-    }
 
     let principal: Awaited<ReturnType<typeof authenticateMcpToken>>;
     try {
@@ -380,23 +414,102 @@ export const Route = createServerFileRoute("/api/v1/mcp")({
     const params = message.params && typeof message.params === "object" && !Array.isArray(message.params)
       ? message.params as Record<string, unknown>
       : {};
-    let negotiated = protocolHeader ?? "2025-11-25";
+    const meta = params._meta && typeof params._meta === "object" && !Array.isArray(params._meta)
+      ? params._meta as Record<string, unknown>
+      : {};
+    const bodyProtocol = typeof meta["io.modelcontextprotocol/protocolVersion"] === "string"
+      ? meta["io.modelcontextprotocol/protocolVersion"] as string
+      : undefined;
+    const modern = bodyProtocol === CURRENT_PROTOCOL || protocolHeader === CURRENT_PROTOCOL;
+    let negotiated = protocolHeader ?? "2025-03-26";
 
     if (!hasId || id === null) {
-      // MCP notifications have no JSON-RPC id and receive no JSON-RPC response.
+      // Streamable HTTP notifications do not receive a JSON-RPC response.
       if (message.method.startsWith("notifications/")) {
         return new Response(null, { status: 202, headers: { "Cache-Control": "no-store" } });
       }
-      return rpcError(null, -32600, "Requests must include a string or numeric id", 400, negotiated);
+      return rpcError(null, -32600, "Requests must include a string or numeric id", 400, protocolHeader ?? undefined);
+    }
+
+    if (modern) {
+      const modernHeadersValid =
+        bodyProtocol === CURRENT_PROTOCOL &&
+        protocolHeader === bodyProtocol &&
+        request.headers.get("mcp-method") === message.method &&
+        (message.method !== "tools/call" ||
+          (typeof params.name === "string" && request.headers.get("mcp-name") === params.name));
+      if (!modernHeadersValid) {
+        return rpcError(
+          id,
+          -32020,
+          "MCP request headers are missing or do not match the request body.",
+          400,
+          CURRENT_PROTOCOL,
+        );
+      }
+      if (!meta["io.modelcontextprotocol/clientCapabilities"] ||
+          typeof meta["io.modelcontextprotocol/clientCapabilities"] !== "object" ||
+          Array.isArray(meta["io.modelcontextprotocol/clientCapabilities"])) {
+        return rpcError(id, -32600, "Modern MCP requests must declare clientCapabilities in params._meta.", 400, CURRENT_PROTOCOL);
+      }
+      if (!SUPPORTED_PROTOCOLS.has(bodyProtocol)) {
+        return rpcError(id, -32022, "Unsupported MCP protocol version.", 400, CURRENT_PROTOCOL, {
+          supported: [...SUPPORTED_PROTOCOLS],
+          requested: bodyProtocol,
+        });
+      }
+      negotiated = CURRENT_PROTOCOL;
+
+      if (message.method === "server/discover") {
+        return rpcResponse(id, {
+          supportedVersions: [...SUPPORTED_PROTOCOLS],
+          capabilities: { tools: {} },
+          instructions: "Use explicit tool calls to save concise, user-authorized work summaries. The bearer token fixes the source identity and all records are scoped to the token owner. Only captured records are searchable; this server does not imply complete access to disconnected provider histories.",
+          ttlMs: 0,
+          cacheScope: "private",
+        }, negotiated, true);
+      }
+
+      if (message.method === "tools/list") {
+        return rpcResponse(id, {
+          tools: TOOLS,
+          ttlMs: 0,
+          cacheScope: "private",
+        }, negotiated, true);
+      }
+
+      if (message.method === "tools/call") {
+        const name = typeof params.name === "string" ? params.name : "";
+        try {
+          const result = await callTool(name, params.arguments, {
+            userId: principal.userId,
+            source: principal.source,
+          });
+          return rpcResponse(id, result, negotiated, true);
+        } catch (error) {
+          console.error("[mcp] Tool call failed", { tool: name, error });
+          return rpcResponse(id, toolError("The requested operation failed. Check the input and try again; no credentials are returned by this service."), negotiated, true);
+        }
+      }
+
+      return rpcError(id, -32601, "Method not found", 200, negotiated);
+    }
+
+    // Legacy versions use initialize and connection-scoped negotiation.
+    if (!SUPPORTED_PROTOCOLS.has(negotiated) || negotiated === CURRENT_PROTOCOL) {
+      return rpcError(id, -32022, "Unsupported MCP protocol version.", 400, protocolHeader ?? undefined, {
+        supported: [...LEGACY_PROTOCOLS],
+        requested: negotiated,
+      });
     }
 
     if (message.method === "initialize") {
       const requested = typeof params.protocolVersion === "string" ? params.protocolVersion : "";
-      negotiated = SUPPORTED_PROTOCOLS.has(requested) ? requested : "2025-11-25";
+      negotiated = LEGACY_PROTOCOLS.has(requested) ? requested : "2025-11-25";
       return rpcResponse(id, {
         protocolVersion: negotiated,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "remindme-activity-memory", version: "1.0.0" },
+        serverInfo: { name: "remindme-activity-memory", version: "1.1.0" },
         instructions: "Use explicit tool calls to save concise, user-authorized work summaries. The bearer token fixes the source identity and all records are scoped to the token owner. Never infer completion from discussion, create deadlines that were not stated, or claim complete coverage of disconnected sources.",
       }, negotiated);
     }
