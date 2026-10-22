@@ -110,11 +110,11 @@ button{min-height:48px;border-radius:14px;border:1px solid #14141224;padding:10p
 <div class="brand">Re:Mind Me · Secure connection</div>
 <h1>Connect ${htmlEscape(clientName)}?</h1>
 <p>This client is requesting access to your private activity memory. Review exactly what it can do before approving.</p>
+<form method="post" action="/oauth/authorize">
+<input type="hidden" name="consent_token" value="${htmlEscape(requestToken)}">
 <h2>Activity source label</h2>
 <label class="scope"><span><strong>Attribute captured work to</strong><small>This label is saved with the activity. You can change it when approving another connection.</small><select name="source" style="display:block;width:100%;margin-top:8px;border:1px solid #14141224;border-radius:10px;padding:10px;background:#fffdf7">${sourceOptions}</select></span></label>
 <h2>Requested permissions</h2>
-<form method="post" action="/oauth/authorize">
-<input type="hidden" name="consent_token" value="${htmlEscape(requestToken)}">
 ${options || "<p>No permissions were selected. Restart the connection from your AI client.</p>"}
 <div class="actions">
 <button class="deny" type="submit" name="decision" value="deny">Deny</button>
