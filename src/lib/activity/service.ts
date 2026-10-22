@@ -173,3 +173,104 @@ export async function listReminders(options: {
     [options.userId],
   );
 }
+
+
+export async function searchActivities(
+  userId: string,
+  options: { query: string; limit?: number },
+) {
+  const sql = await getSql();
+  const query = options.query.trim();
+  const limit = Math.max(1, Math.min(50, Math.trunc(options.limit ?? 10)));
+  if (!query) return [];
+
+  const term = `%${query}%`;
+  return sql.query(
+    [
+      "SELECT id, source, project_name, category, title, summary, activity_type,",
+      "  completion_status, occurred_at, created_at",
+      "FROM activity_events",
+      "WHERE user_id = $1 AND (",
+      "  title ILIKE $2 OR COALESCE(summary, '') ILIKE $2 OR",
+      "  COALESCE(project_name, '') ILIKE $2 OR COALESCE(category, '') ILIKE $2",
+      ")",
+      "ORDER BY occurred_at DESC",
+      "LIMIT $3",
+    ].join("\n"),
+    [userId, term, limit],
+  );
+}
+
+export async function upsertDecision(
+  userId: string,
+  source: string,
+  input: {
+    activityId: number | null;
+    project?: string;
+    title: string;
+    decision: string;
+    rationale?: string;
+    sourceReference?: string;
+  },
+) {
+  const sql = await getSql();
+  const projectId = input.project ? await upsertProject(userId, input.project) : null;
+  const rows = await sql.query<{ id: number }>(
+    [
+      "INSERT INTO decisions (user_id, source, source_reference, activity_id, project_id, title, rationale, decision_text)",
+      "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+      "ON CONFLICT (user_id, source, source_reference) WHERE source_reference IS NOT NULL",
+      "DO UPDATE SET",
+      "  activity_id = EXCLUDED.activity_id, project_id = EXCLUDED.project_id,",
+      "  title = EXCLUDED.title, rationale = EXCLUDED.rationale, decision_text = EXCLUDED.decision_text",
+      "RETURNING id",
+    ].join("\n"),
+    [
+      userId,
+      source,
+      input.sourceReference ?? null,
+      input.activityId,
+      projectId,
+      input.title,
+      input.rationale ?? null,
+      input.decision,
+    ],
+  );
+  return rows[0]?.id ?? null;
+}
+
+export async function upsertMcpActionItem(
+  userId: string,
+  source: string,
+  input: {
+    title: string;
+    summary?: string;
+    project?: string;
+    sourceReference?: string;
+    dueAt?: string;
+  },
+) {
+  const sql = await getSql();
+  const projectId = input.project ? await upsertProject(userId, input.project) : null;
+  const rows = await sql.query<{ id: number; status: string; due_at: string | null }>(
+    [
+      "INSERT INTO action_items (user_id, source, source_reference, project_id, title, summary, status, due_at)",
+      "VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)",
+      "ON CONFLICT (user_id, source, source_reference) WHERE source_reference IS NOT NULL",
+      "DO UPDATE SET",
+      "  project_id = EXCLUDED.project_id, title = EXCLUDED.title,",
+      "  summary = EXCLUDED.summary, due_at = EXCLUDED.due_at, updated_at = NOW()",
+      "RETURNING id, status, due_at",
+    ].join("\n"),
+    [
+      userId,
+      source,
+      input.sourceReference ?? null,
+      projectId,
+      input.title,
+      input.summary ?? null,
+      input.dueAt ?? null,
+    ],
+  );
+  return rows[0] ?? null;
+}
