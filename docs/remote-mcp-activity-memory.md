@@ -45,7 +45,8 @@ Tool writes default to private activity storage. Each token is tied to one user 
 - Raw token values are never stored; only a hash is persisted. Token metadata lists the label, source, creation date, and last use.
 - Every read/write is scoped to the owner identified by the token. A caller cannot choose another user id in tool arguments.
 - The connector records only what the client explicitly sends. Historical exports, live platform APIs, and scheduled daily compilation are separate integration steps.
-- The initial HTTP transport supports stateless JSON responses for MCP protocol versions `2025-11-25`, `2025-06-18`, and `2025-03-26`. Clients must support a custom Bearer header. OAuth-only clients may need an OAuth authorization layer before they can connect.
+- The endpoint supports the current stateless MCP protocol `2026-07-28`, including `server/discover`, per-request `_meta`, and validation of `MCP-Protocol-Version`, `Mcp-Method`, and `Mcp-Name` headers. It also retains the legacy `initialize` flow for `2025-11-25`, `2025-06-18`, and `2025-03-26` clients.
+- Clients must support configuring a custom Bearer header. This release does not implement an OAuth authorization-server flow, SSE subscriptions, or the older HTTP+SSE transport from `2024-11-05`. Browser-originated requests must be same-origin; server-to-server MCP clients generally omit `Origin`.
 - The daily digest uses UTC when no date is supplied. Pass the user's local `YYYY-MM-DD` date when requesting a timezone-accurate report.
 
 The app's existing authenticated REST API remains available for first-party clients. MCP is an additional explicit-capture surface, not a second source of truth.
