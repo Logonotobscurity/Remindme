@@ -1,6 +1,6 @@
 import { createServerFileRoute } from "@tanstack/react-start/server";
-import { canonicalMcpResource, findOAuthClient, issueOAuthTokens, rotateOAuthRefreshToken, validateOAuthClientSecret } from "@/lib/activity/mcp-oauth.server";
-import { normalizeOAuthScopes, validResourceValue } from "@/lib/activity/mcp-oauth-policy.mjs";
+import { canonicalMcpResource, findOAuthClient, issueOAuthTokens, rotateOAuthRefreshToken, validateOAuthClientSecret, validResourceValue } from "@/lib/activity/mcp-oauth.server";
+import { normalizeOAuthScopes } from "@/lib/activity/mcp-oauth-policy.mjs";
 
 function tokenError(error: string, status = 400, description?: string) {
   return Response.json({
