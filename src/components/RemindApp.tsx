@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { MindOrb } from "@/components/MindOrb";
 import { activityApiFetch } from "@/lib/activity/api-client";
 import {
   Archive,
@@ -930,11 +931,14 @@ export function RemindApp() {
         ) : tab === "remind" ? (
           <section className="anim-fade space-y-5 p-5 capture-lane">
             <div className="capture-hero pt-3 pb-2 text-center">
-              <div className={`thinking-orb ${canCompose ? "orb-awake" : ""} ${engagedChip ? "orb-catching" : ""}`} aria-hidden="true">
-                <span className="orb-glint orb-glint-one" />
-                <span className="orb-glint orb-glint-two" />
-                <span className="orb-core"><Sparkles size={25} strokeWidth={1.7} /></span>
-              </div>
+              <MindOrb
+                listening={listening}
+                recording={recordingVideo}
+                busy={busy}
+                catching={Boolean(engagedChip)}
+                ready={canCompose}
+                night={slumberMode}
+              />
               <p className="capture-eyebrow">A softer way to remember</p>
               <h1 className="capture-heading">What's on your mind?</h1>
               <p className="capture-subtitle">Leave it here. We'll bring it back at the right moment.</p>
@@ -1144,9 +1148,14 @@ export function RemindApp() {
             {activeReminders.length === 0 ? (
               <EmptyBell onCreate={() => setTab("remind")} />
             ) : listView === "list" ? (
-              <div className="space-y-3">
-                {activeReminders.map((item) => (
-                  <ReminderRow key={item.id} item={item} onDone={() => toggleDone(item.id)} onEdit={() => beginEdit(item, "reminder")} onDelete={() => removeItem(item.id, "reminder")} onPark={() => changeReminderStatus(item.id, "parked")} onArchive={() => changeReminderStatus(item.id, "archived")} />
+              <div className="space-y-5">
+                {groupReminders(activeReminders).map((group) => (
+                  <div key={group.label} className="space-y-3">
+                    <h3 className="font-mono text-xs font-medium tracking-wide text-mute">{group.label}</h3>
+                    {group.items.map((item) => (
+                      <ReminderRow key={item.id} item={item} onDone={() => toggleDone(item.id)} onEdit={() => beginEdit(item, "reminder")} onDelete={() => removeItem(item.id, "reminder")} onPark={() => changeReminderStatus(item.id, "parked")} onArchive={() => changeReminderStatus(item.id, "archived")} />
+                    ))}
+                  </div>
                 ))}
               </div>
             ) : (
@@ -1710,6 +1719,17 @@ function SaveRow({ item, onEdit, onDelete }: { item: SaveItem; onEdit: () => voi
       </div>
     </article>
   );
+}
+
+function groupReminders(items: Reminder[]) {
+  const groups: { label: string; items: Reminder[] }[] = [];
+  for (const item of [...items].sort((a, b) => a.time - b.time)) {
+    const label = dateChip(item.time);
+    const last = groups.at(-1);
+    if (last?.label === label) last.items.push(item);
+    else groups.push({ label, items: [item] });
+  }
+  return groups;
 }
 
 function ReminderRow({ item, onDone, onEdit, onDelete, onPark, onArchive }: { item: Reminder; onDone: () => void; onEdit: () => void; onDelete: () => void; onPark: () => void; onArchive: () => void }) {
