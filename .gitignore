@@ -6,3 +6,5 @@ node_modules/
 # The sample is safe to commit. The filled-in local file is not.
 !.env.example
 !.env.local.example
+
+.vercel/output/
