@@ -230,6 +230,26 @@ export function RemindApp() {
     });
   };
 
+  const syncReminder = (item: Reminder, status?: "scheduled" | "completed" | "cancelled") => {
+    if (authPending || !user) return;
+    const serverStatus = status
+      ?? (item.completed ? "completed" : item.status === "archived" ? "cancelled" : "scheduled");
+    void activityApiFetch("/api/v1/reminders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reminderKey: "pwa:" + item.id,
+        title: item.text.slice(0, 240),
+        dueAt: new Date(item.time).toISOString(),
+        status: serverStatus,
+      }),
+    }).then((response) => {
+      if (!response.ok) flash("Saved on this device. The account did not confirm it.");
+    }).catch(() => {
+      flash("Saved on this device. The account did not confirm it.");
+    });
+  };
+
   useEffect(() => {
     if (authPending) return;
     const loadedReminders = loadReminders(storageScope);
@@ -450,6 +470,7 @@ export function RemindApp() {
     const next = [item, ...reminders];
     setReminders(next);
     persistReminders(next, storageScope);
+    syncReminder(item);
     captureActivity({
       title: "Reminder created: " + item.text,
       summary: [item.timeLabel, item.location].filter(Boolean).join(" • "),
@@ -526,6 +547,7 @@ export function RemindApp() {
     const next = [item, ...reminders];
     setReminders(next);
     persistReminders(next, storageScope);
+    syncReminder(item);
     captureActivity({
       title: "Reminder created: " + item.text,
       summary: [item.timeLabel, item.location].filter(Boolean).join(" • "),
@@ -576,6 +598,7 @@ export function RemindApp() {
       setReminders(next);
       persistReminders(next, storageScope);
       if (item) {
+        syncReminder(item, "cancelled");
         if (canCaptureItem(item.activityOwnerId)) captureActivity({
           title: "Reminder deleted: " + item.text,
           summary: "Removed from the local reminder list.",
@@ -612,6 +635,7 @@ export function RemindApp() {
       const next = [item, ...reminders];
       setReminders(next);
       persistReminders(next, storageScope);
+      syncReminder(item, item.completed ? "completed" : "scheduled");
       if (canCaptureItem(item.activityOwnerId)) captureActivity({
         title: "Reminder restored: " + item.text,
         summary: item.timeLabel,
@@ -644,6 +668,10 @@ export function RemindApp() {
     );
     setReminders(next);
     persistReminders(next, storageScope);
+    if (current) {
+      const updated = next.find((item) => item.id === current.id);
+      if (updated) syncReminder(updated, updated.completed ? "completed" : "scheduled");
+    }
     if (current && canCaptureItem(current.activityOwnerId)) {
       const isCompleting = !current.completed;
       captureActivity({
@@ -670,6 +698,7 @@ export function RemindApp() {
     const next = reminders.map((item) => item.id === id ? updated : item);
     setReminders(next);
     persistReminders(next, storageScope);
+    syncReminder(updated, status === "archived" ? "cancelled" : "scheduled");
     if (canCaptureItem(current.activityOwnerId)) {
       const verb = status === "parked" ? "parked" : status === "archived" ? "archived" : "restored";
       captureActivity({
