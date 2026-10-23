@@ -171,17 +171,34 @@ export function RemindApp() {
   const speechRef = useRef<{ stop: () => void } | null>(null);
   remindersRef.current = reminders;
 
-  // Follow local evening/night hours by default. The header toggle can override
-  // the automatic schedule for the current session.
+  // Night follows local sunset, 6:30 PM–6:30 AM. A tap locks day or night; the next tap returns to sunset.
+  useEffect(() => {
+    const stored = window.localStorage.getItem("remindme-theme");
+    if (stored === "dark") setSlumberOverride(true);
+    if (stored === "light") setSlumberOverride(false);
+  }, []);
+
   useEffect(() => {
     const syncSlumber = () => {
-      const hour = new Date().getHours();
-      setAutoSlumber(hour >= 19 || hour < 7);
+      const now = new Date();
+      const minutes = now.getHours() * 60 + now.getMinutes();
+      setAutoSlumber(minutes >= 18 * 60 + 30 || minutes < 6 * 60 + 30);
     };
     syncSlumber();
     const id = window.setInterval(syncSlumber, 60_000);
     return () => window.clearInterval(id);
   }, []);
+
+  const themeMounted = useRef(false);
+  useEffect(() => {
+    if (!themeMounted.current) {
+      themeMounted.current = true;
+      return;
+    }
+    document.documentElement.dataset.theme = slumberMode ? "dark" : "light";
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) themeColor.setAttribute("content", slumberMode ? "#08090C" : "#F4F1E8");
+  }, [slumberMode]);
 
   // Local reminders and saved items remain usable offline. Only send new events
   // when a real account session has resolved; never send a client-supplied user id.
@@ -848,8 +865,17 @@ export function RemindApp() {
             <button
               type="button"
               aria-label={slumberMode ? "Switch to day mode" : "Switch to Slumber Mode"}
-              title={slumberOverride === null ? "Automatic Slumber Mode: 7 PM–7 AM. Click to override." : "Slumber Mode is manually overridden until reload."}
-              onClick={() => setSlumberOverride(!slumberMode)}
+              title={slumberOverride === null ? "Night follows local sunset, 6:30 PM to 6:30 AM. Tap to keep the other theme." : "Theme is locked. Tap to follow sunset again."}
+              onClick={() => {
+                if (slumberOverride === null) {
+                  const next = !slumberMode;
+                  window.localStorage.setItem("remindme-theme", next ? "dark" : "light");
+                  setSlumberOverride(next);
+                  return;
+                }
+                window.localStorage.setItem("remindme-theme", "auto");
+                setSlumberOverride(null);
+              }}
               className="flex size-11 items-center justify-center rounded-xl text-ink/80 transition-colors hover:bg-black/5"
             >
               {slumberMode ? <Sun size={19} /> : <MoonStar size={19} />}
