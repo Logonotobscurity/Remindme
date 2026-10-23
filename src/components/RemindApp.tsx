@@ -834,7 +834,7 @@ export function RemindApp() {
     return (
       <div className="flex h-dvh items-center justify-center bg-paper">
         <div className="flex flex-col items-center gap-3">
-          <div className="size-10 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+          <MindOrb listening={false} recording={false} busy={false} catching={false} ready={false} night={false} />
           <p className="text-sm text-mute">Opening Re:Mind Me</p>
         </div>
       </div>
@@ -857,10 +857,10 @@ export function RemindApp() {
             <Menu size={22} />
           </button>
           <div className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-brand text-white">
+            <span className="flex size-8 items-center justify-center rounded-full bg-brand text-[#082117]">
               <Sparkles size={16} />
             </span>
-            <span className="text-lg font-bold tracking-tight">Re:Mind Me</span>
+            <span className="wordmark text-[1.35rem]">Re:Mind Me</span>
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -1012,7 +1012,7 @@ export function RemindApp() {
                   Location
                   <input value={manualLocation} onChange={(e) => setManualLocation(e.target.value)} placeholder="Optional" className="mt-1 w-full rounded-xl border border-line bg-slate-50 px-3 py-2.5" />
                 </label>
-                <button type="button" onClick={addManual} disabled={!canCompose || !manualDate || !manualTime} className="h-12 w-full rounded-xl bg-brand font-semibold text-white disabled:bg-slate-300">
+                <button type="button" onClick={addManual} disabled={!canCompose || !manualDate || !manualTime} className="h-12 w-full rounded-xl bg-brand font-semibold text-[#082117] disabled:bg-slate-300">
                   Create reminder
                 </button>
               </div>
@@ -1022,7 +1022,7 @@ export function RemindApp() {
                   type="button"
                   onClick={() => void openDraft("reminder")}
                   disabled={!canCompose || busy}
-                  className="commit-button flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white shadow-md shadow-brand/25 disabled:bg-slate-300 disabled:shadow-none"
+                  className="commit-button flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-[#082117] shadow-md shadow-brand/25 disabled:bg-slate-300 disabled:shadow-none"
                 >
                   {busy ? <span className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <Sparkles size={18} />}
                   {busy ? "Reading it…" : "Create reminder"}
@@ -1249,7 +1249,7 @@ export function RemindApp() {
             <button
               type="button"
               onClick={draft.type === "reminder" ? saveReminderDraft : saveItemDraft}
-              className="h-12 flex-1 rounded-xl bg-brand font-semibold text-white"
+              className="h-12 flex-1 rounded-xl bg-brand font-semibold text-[#082117]"
             >
               Confirm
             </button>
@@ -1296,7 +1296,7 @@ export function RemindApp() {
               <button type="button" onClick={() => setEditing(null)} className="h-12 flex-1 rounded-xl bg-slate-100 font-semibold">
                 Cancel
               </button>
-              <button type="button" onClick={commitEdit} className="h-12 flex-1 rounded-xl bg-brand font-semibold text-white">
+              <button type="button" onClick={commitEdit} className="h-12 flex-1 rounded-xl bg-brand font-semibold text-[#082117]">
                 Save
               </button>
             </div>
@@ -1334,7 +1334,7 @@ export function RemindApp() {
                   Delete
                 </button>
               )}
-              <button type="button" onClick={commitCategory} disabled={!newCategoryName.trim()} className="h-12 flex-1 rounded-xl bg-brand font-semibold text-white disabled:bg-slate-300">
+              <button type="button" onClick={commitCategory} disabled={!newCategoryName.trim()} className="h-12 flex-1 rounded-xl bg-brand font-semibold text-[#082117] disabled:bg-slate-300">
                 {editingCategoryId ? "Save" : "Create"}
               </button>
             </div>
@@ -1519,7 +1519,7 @@ export function RemindApp() {
       )}
 
       <nav className="absolute right-4 bottom-4 left-4 z-30">
-        <div className="flex rounded-2xl border border-line bg-white/95 p-1.5 shadow-lg shadow-slate-300/50 backdrop-blur">
+        <div className="dock flex rounded-3xl p-1.5">
           <NavButton active={tab === "reminder"} onClick={() => switchTab("reminder")} icon={<Bell size={17} fill={tab === "reminder" ? "currentColor" : "none"} />} label="List" />
           <NavButton active={tab === "remind"} onClick={() => switchTab("remind")} icon={<Plus size={17} />} label="Remind" />
           <NavButton active={tab === "graveyard"} onClick={() => switchTab("graveyard")} icon={<Archive size={17} />} label="Graveyard" />
@@ -1734,32 +1734,35 @@ function groupReminders(items: Reminder[]) {
 
 function ReminderRow({ item, onDone, onEdit, onDelete, onPark, onArchive }: { item: Reminder; onDone: () => void; onEdit: () => void; onDelete: () => void; onPark: () => void; onArchive: () => void }) {
   return (
-    <article className={`flex gap-3 rounded-2xl border border-line p-4 ${item.completed ? "opacity-60" : ""}`} style={{ backgroundColor: item.color === "#ffffff" ? "#fff" : item.color }}>
-      {item.photo && <MediaThumb src={item.photo} kind={item.mediaKind} className="size-14 shrink-0 rounded-xl object-cover" />}
+    <article className={`surface-row flex gap-3 rounded-3xl p-4 ${item.completed ? "opacity-60" : ""}`}>
+      <button type="button" aria-label={item.completed ? "Mark not done" : "Mark done"} onClick={onDone} className={`flex size-11 shrink-0 items-center justify-center rounded-full ${item.completed ? "bg-brand text-[#082117]" : "border border-line bg-paper"}`}>
+        <Check size={16} />
+      </button>
+      {item.photo && <MediaThumb src={item.photo} kind={item.mediaKind} className="size-14 shrink-0 rounded-2xl object-cover" />}
       <div className="min-w-0 flex-1">
-        <p className={`font-medium ${item.completed ? "text-mute line-through" : ""}`}>{item.text}</p>
+        <p className={`font-medium leading-snug ${item.completed ? "text-mute line-through" : ""}`}>{item.text}</p>
         <div className="mt-2 flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600">
-            <Clock size={12} />
+          <span className="quiet-chip inline-flex items-center gap-1 rounded-full px-2 py-1">
+            <Clock size={11} />
             {item.timeLabel}
           </span>
           {item.location && (
-            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2 py-1 text-xs text-sky-700">
-              <MapPin size={12} />
+            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`} target="_blank" rel="noreferrer" className="quiet-chip inline-flex items-center gap-1 rounded-full px-2 py-1">
+              <MapPin size={11} />
               {item.location}
             </a>
           )}
         </div>
       </div>
-      <div className="flex flex-col gap-1">
-        <button type="button" aria-label={item.completed ? "Mark not done" : "Mark done"} onClick={onDone} className={`flex size-9 items-center justify-center rounded-lg ${item.completed ? "bg-emerald-500 text-white" : "bg-slate-100"}`}>
-          <Check size={16} />
-        </button>
-        <IconBtn label="Edit" onClick={onEdit}><Pencil size={14} /></IconBtn>
-        <IconBtn label="Park reminder" onClick={onPark}><PauseCircle size={14} /></IconBtn>
-        <IconBtn label="Archive reminder" onClick={onArchive}><Archive size={14} /></IconBtn>
-        <IconBtn label="Delete" onClick={onDelete}><Trash2 size={14} /></IconBtn>
-      </div>
+      <details className="relative">
+        <summary className="flex size-11 cursor-pointer list-none items-center justify-center rounded-full text-[10px] font-semibold tracking-wide text-mute uppercase hover:bg-paper">More</summary>
+        <div className="absolute top-12 right-0 z-10 flex gap-1 rounded-2xl border border-line bg-surface p-1 shadow-lg">
+          <IconBtn label="Edit" onClick={onEdit}><Pencil size={14} /></IconBtn>
+          <IconBtn label="Park reminder" onClick={onPark}><PauseCircle size={14} /></IconBtn>
+          <IconBtn label="Archive reminder" onClick={onArchive}><Archive size={14} /></IconBtn>
+          <IconBtn label="Delete" onClick={onDelete}><Trash2 size={14} /></IconBtn>
+        </div>
+      </details>
     </article>
   );
 }
@@ -1798,7 +1801,7 @@ function EmptyBell({ onCreate }: { onCreate: () => void }) {
       </div>
       <h3 className="text-lg font-semibold">No reminders yet</h3>
       <p className="mt-1 mb-4 text-sm text-mute">The first one can be a sentence.</p>
-      <button type="button" onClick={onCreate} className="h-11 rounded-xl bg-brand px-5 font-semibold text-white">
+      <button type="button" onClick={onCreate} className="h-11 rounded-full bg-brand px-5 font-semibold text-[#082117]">
         Create reminder
       </button>
     </div>
@@ -1816,7 +1819,7 @@ function IconBtn({ label, onClick, children }: { label: string; onClick: () => v
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="anim-fade absolute inset-0 z-50 flex items-end bg-ink/40" onClick={onClose}>
-      <div className="anim-sheet max-h-[88%] w-full overflow-y-auto rounded-t-3xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="anim-sheet max-h-[88%] w-full overflow-y-auto rounded-t-3xl bg-surface p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-slate-200" />
         <h3 className="mb-4 text-center text-lg font-bold">{title}</h3>
         {children}
@@ -1893,7 +1896,7 @@ function SearchGroup({
 
 function NavButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: ReactNode; label: string }) {
   return (
-    <button type="button" onClick={onClick} className={`flex h-12 flex-1 items-center justify-center gap-1 rounded-xl text-[10px] font-semibold sm:gap-2 sm:text-xs ${active ? "bg-brand text-white" : "text-mute"}`}>
+    <button type="button" onClick={onClick} className={`flex h-12 flex-1 items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold sm:gap-2 sm:text-xs ${active ? "bg-brand text-[#082117]" : "text-mute"}`}>
       {icon}
       {label}
     </button>

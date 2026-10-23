@@ -418,6 +418,26 @@ html[data-theme="dark"],
   background: rgb(0 232 135 / 12%);
   color: #F4F1E8;
 }
-@media (prefers-reduced-motion: reduce) {
-  .graveyard-item { transition: none !important; }
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 560;
+  letter-spacing: -0.04em;
+}
+.dock {
+  border: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-surface) 86%, transparent);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(18px);
+}
+.surface-row {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgb(8 9 12 / 4%);
+}
+.quiet-chip {
+  border: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-paper) 70%, var(--color-surface));
+  color: var(--color-mute);
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
