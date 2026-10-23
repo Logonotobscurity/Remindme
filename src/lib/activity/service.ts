@@ -146,7 +146,7 @@ export async function listReminders(options: {
   dueDate?: string;
 }) {
   const sql = await getSql();
-  const columns = "id, title, due_at, status, notified, created_at";
+  const columns = "id, reminder_key, title, due_at, status, notified, created_at";
 
   if (options.dueDate) {
     return sql.query(
@@ -172,6 +172,55 @@ export async function listReminders(options: {
     ].join("\n"),
     [options.userId],
   );
+}
+
+const REMINDER_STATUSES = new Set(["scheduled", "completed", "cancelled"]);
+
+export function googleCalendarTemplateUrl(title: string, dueAt: string | null) {
+  const url = new URL("https://calendar.google.com/calendar/render");
+  url.searchParams.set("action", "TEMPLATE");
+  url.searchParams.set("text", title);
+  if (!dueAt) return url.toString();
+  const start = new Date(dueAt);
+  if (!Number.isFinite(start.getTime())) return url.toString();
+  const stamp = (value: Date) => value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const end = new Date(start.getTime() + 30 * 60 * 1000);
+  url.searchParams.set("dates", stamp(start) + "/" + stamp(end));
+  return url.toString();
+}
+
+export async function saveReminder(
+  userId: string,
+  input: { reminderKey: string; title: string; dueAt?: string | null; status?: string },
+) {
+  const sql = await getSql();
+  const status = REMINDER_STATUSES.has(input.status ?? "") ? input.status : "scheduled";
+  const rows = await sql.query<{
+    id: number;
+    reminder_key: string;
+    title: string;
+    due_at: string | null;
+    status: string;
+  }>(
+    [
+      "INSERT INTO reminders (user_id, reminder_key, title, due_at, status)",
+      "VALUES ($1, $2, $3, $4, $5)",
+      "ON CONFLICT (user_id, reminder_key)",
+      "DO UPDATE SET",
+      "  title = EXCLUDED.title,",
+      "  due_at = EXCLUDED.due_at,",
+      "  status = EXCLUDED.status,",
+      "  updated_at = NOW()",
+      "RETURNING id, reminder_key, title, due_at, status",
+    ].join("\n"),
+    [userId, input.reminderKey, input.title, input.dueAt ?? null, status],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    ...row,
+    calendarUrl: row.status === "cancelled" ? null : googleCalendarTemplateUrl(row.title, row.due_at),
+  };
 }
 
 

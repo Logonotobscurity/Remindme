@@ -54,7 +54,7 @@ Reminder events must also include a stable `reminder_id`. Updates and cancellati
 
 The inbox exists. Do not invent another one, and do not mark the schema as pending. `schema_version` is `1.0`.
 
-1. Re:Mind Me MCP at `/api/v1/mcp`, if this client already has an OAuth or personal token. Map `activity.created`, `decision.created`, and `idea.created` to `capture_activity` or `capture_decision`. Map tasks to `capture_action_item`. Put `event_id` in `sourceReference`. The token's source is the source of record; do not override it in tool arguments.
+1. Re:Mind Me, when this run already has a reachable HTTPS origin and a signed-in token. `POST /api/v1/activity` with `sourceReference` set to `event_id`. `POST /api/v1/reminders` with `reminderKey` set to `reminder_id` for create, update, complete (`status: completed`), and cancel (`status: cancelled`). The same key updates one row. A cancelled reminder does not get a second calendar event. Do not call a private preview address. Do not say the app stored a row unless the response includes an id.
 2. Google Drive folder `ReMindMe_Automation_Inbox` (`1MUkpKQ1YOSwcogcwznD8G3FcHrnt7maP`): https://drive.google.com/drive/folders/1MUkpKQ1YOSwcogcwznD8G3FcHrnt7maP
    - Events sheet: `1Mq4yV91C1cMjrb1VmQ0c6yal7Y5bmvQdQaitZOq1gx8`
    - Daily Reports sheet: `1c90J8x5PxI8g9ia0tTuQxkeaT1smkJsk1fm_UOJoxOU`
