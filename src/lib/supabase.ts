@@ -22,6 +22,25 @@ export async function supabaseAccessToken(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
+export async function publishSupabaseSession(accessToken: string): Promise<boolean> {
+  const response = await fetch("/api/auth/supabase-session", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ accessToken }),
+  });
+  return response.ok;
+}
+
+export async function clearPublishedSupabaseSession(): Promise<void> {
+  await fetch("/api/auth/supabase-session", { method: "DELETE", credentials: "same-origin" });
+}
+
+export function safeReturnTo(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\") || raw.includes("://")) return "/";
+  return raw;
+}
+
 export function supabaseAppUser(session: Session | null) {
   const user = session?.user;
   if (!user) return null;

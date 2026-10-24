@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
-import { getSupabase, supabaseConfigured } from "@/lib/supabase";
+import { useEffect, useState, type FormEvent } from "react";
+import { getSupabase, publishSupabaseSession, safeReturnTo, supabaseConfigured } from "@/lib/supabase";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
@@ -11,6 +11,18 @@ function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const client = getSupabase();
+    const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+    if (!client || !returnTo) return;
+    void client.auth.getSession().then(async ({ data }) => {
+      const token = data.session?.access_token;
+      if (!token) return;
+      const published = await publishSupabaseSession(token);
+      if (published) window.location.assign(safeReturnTo(returnTo));
+    });
+  }, []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -36,9 +48,13 @@ function Login() {
       setMode("sign-in");
       return;
     }
+    const published = await publishSupabaseSession(result.data.session.access_token);
+    if (!published) {
+      setError("Signed in, but the connection cookie was not saved. Try again.");
+      return;
+    }
     const rawReturnTo = new URLSearchParams(window.location.search).get("returnTo");
-    const next = rawReturnTo && rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//") ? rawReturnTo : "/";
-    window.location.assign(next);
+    window.location.assign(safeReturnTo(rawReturnTo));
   }
 
   return (

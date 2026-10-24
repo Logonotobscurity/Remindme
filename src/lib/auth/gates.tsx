@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { Navigate } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authEnabled, signIn, signOut } from "./client";
-import { getSupabase, supabaseConfigured } from "@/lib/supabase";
+import { getSupabase, clearPublishedSupabaseSession, supabaseConfigured } from "@/lib/supabase";
 import { hasGateSessionMarker } from "./gate-session-marker";
 import { resolveSignInGateState } from "./sign-in-gate";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
@@ -128,7 +128,9 @@ export function UserButton() {
           onClick={() => {
             setSigningOut(true);
             const client = getSupabase();
-            const leaving = client ? client.auth.signOut().then(() => window.location.assign("/")) : signOut();
+            const leaving = client
+              ? clearPublishedSupabaseSession().then(() => client.auth.signOut()).then(() => window.location.assign("/"))
+              : signOut();
             void leaving.catch(() => setSigningOut(false));
           }}
           className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline disabled:cursor-wait disabled:no-underline"

@@ -1,5 +1,5 @@
 import { getRequest } from "@tanstack/react-start/server";
-import { userFromSupabaseToken } from "./supabase-user.server";
+import { readSupabaseSessionCookie, userFromSupabaseToken } from "./supabase-user.server";
 import { gateIdentityEnabled } from "./gate-identity.server";
 import { auth, authConfigured } from "./server";
 
@@ -58,12 +58,14 @@ export type VerifiedUser = { id: string; email: string | null };
 export async function getSessionUser(
   bearerToken?: string,
 ): Promise<VerifiedUser | null> {
-  if (bearerToken) {
-    const supabaseUser = await userFromSupabaseToken(bearerToken);
+  const request = getRequest();
+  const cookieToken = !bearerToken && request ? readSupabaseSessionCookie(request) ?? undefined : undefined;
+  const supabaseToken = bearerToken ?? cookieToken;
+  if (supabaseToken) {
+    const supabaseUser = await userFromSupabaseToken(supabaseToken);
     if (supabaseUser) return supabaseUser;
   }
   if (!authConfigured && !gateIdentityEnabled()) return null;
-  const request = getRequest();
   if (!request) return null;
   let headers = request.headers;
   if (bearerToken) {
@@ -87,8 +89,11 @@ export async function getSessionUser(
  * - Auth disabled + no database -> the shared dev user id.
  */
 export async function requireUserId(bearerToken?: string): Promise<string> {
-  if (bearerToken) {
-    const supabaseUser = await userFromSupabaseToken(bearerToken);
+  const request = getRequest();
+  const cookieToken = !bearerToken && request ? readSupabaseSessionCookie(request) ?? undefined : undefined;
+  const supabaseToken = bearerToken ?? cookieToken;
+  if (supabaseToken) {
+    const supabaseUser = await userFromSupabaseToken(supabaseToken);
     if (supabaseUser) return supabaseUser.id;
   }
   if (!authConfigured && !gateIdentityEnabled()) {

@@ -17,6 +17,7 @@ import { Route as OauthRegisterRouteImport } from './routes/oauth/register'
 import { Route as OauthRevokeRouteImport } from './routes/oauth/revoke'
 import { Route as OauthTokenRouteImport } from './routes/oauth/token'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiAuthSupabaseSessionRouteImport } from './routes/api/auth/supabase-session'
 import { Route as ApiV1ActionItemsRouteImport } from './routes/api/v1/action-items'
 import { Route as ApiV1ActivityRouteImport } from './routes/api/v1/activity'
 import { Route as ApiV1McpRouteImport } from './routes/api/v1/mcp'
@@ -65,6 +66,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthSupabaseSessionRoute = ApiAuthSupabaseSessionRouteImport.update({
+  id: '/api/auth/supabase-session',
+  path: '/api/auth/supabase-session',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1ActionItemsRoute = ApiV1ActionItemsRouteImport.update({
   id: '/api/v1/action-items',
   path: '/api/v1/action-items',
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/oauth/revoke': typeof OauthRevokeRoute
   '/oauth/token': typeof OauthTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/supabase-session': typeof ApiAuthSupabaseSessionRoute
   '/api/v1/action-items': typeof ApiV1ActionItemsRoute
   '/api/v1/activity': typeof ApiV1ActivityRoute
   '/api/v1/mcp': typeof ApiV1McpRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/oauth/revoke': typeof OauthRevokeRoute
   '/oauth/token': typeof OauthTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/supabase-session': typeof ApiAuthSupabaseSessionRoute
   '/api/v1/action-items': typeof ApiV1ActionItemsRoute
   '/api/v1/activity': typeof ApiV1ActivityRoute
   '/api/v1/mcp': typeof ApiV1McpRoute
@@ -139,6 +147,7 @@ export interface FileRoutesById {
   '/oauth/revoke': typeof OauthRevokeRoute
   '/oauth/token': typeof OauthTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/supabase-session': typeof ApiAuthSupabaseSessionRoute
   '/api/v1/action-items': typeof ApiV1ActionItemsRoute
   '/api/v1/activity': typeof ApiV1ActivityRoute
   '/api/v1/mcp': typeof ApiV1McpRoute
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
     | '/oauth/revoke'
     | '/oauth/token'
     | '/api/auth/$'
+    | '/api/auth/supabase-session'
     | '/api/v1/action-items'
     | '/api/v1/activity'
     | '/api/v1/mcp'
@@ -173,6 +183,7 @@ export interface FileRouteTypes {
     | '/oauth/revoke'
     | '/oauth/token'
     | '/api/auth/$'
+    | '/api/auth/supabase-session'
     | '/api/v1/action-items'
     | '/api/v1/activity'
     | '/api/v1/mcp'
@@ -189,6 +200,7 @@ export interface FileRouteTypes {
     | '/oauth/revoke'
     | '/oauth/token'
     | '/api/auth/$'
+    | '/api/auth/supabase-session'
     | '/api/v1/action-items'
     | '/api/v1/activity'
     | '/api/v1/mcp'
@@ -206,6 +218,7 @@ export interface RootRouteChildren {
   OauthRevokeRoute: typeof OauthRevokeRoute
   OauthTokenRoute: typeof OauthTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiAuthSupabaseSessionRoute: typeof ApiAuthSupabaseSessionRoute
   ApiV1ActionItemsRoute: typeof ApiV1ActionItemsRoute
   ApiV1ActivityRoute: typeof ApiV1ActivityRoute
   ApiV1McpRoute: typeof ApiV1McpRoute
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/supabase-session': {
+      id: '/api/auth/supabase-session'
+      path: '/api/auth/supabase-session'
+      fullPath: '/api/auth/supabase-session'
+      preLoaderRoute: typeof ApiAuthSupabaseSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/action-items': {
       id: '/api/v1/action-items'
       path: '/api/v1/action-items'
@@ -327,6 +347,7 @@ const rootRouteChildren: RootRouteChildren = {
   OauthRevokeRoute: OauthRevokeRoute,
   OauthTokenRoute: OauthTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiAuthSupabaseSessionRoute: ApiAuthSupabaseSessionRoute,
   ApiV1ActionItemsRoute: ApiV1ActionItemsRoute,
   ApiV1ActivityRoute: ApiV1ActivityRoute,
   ApiV1McpRoute: ApiV1McpRoute,
