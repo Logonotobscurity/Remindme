@@ -1,0 +1,14 @@
+This folder stores portfolio-ready visual assets for the repo.
+
+Recommended files:
+- banner.png
+- demo.gif
+- screenshot-approval.png
+- screenshot-memory.png
+- screenshot-execution-centre.png
+- screenshot-workspace.png
+- social-preview.png
+
+Use relative paths in README files, for example:
+- `![Demo](docs/assets/demo.gif)`
+- `![Banner](docs/assets/banner.png)`
