@@ -16,7 +16,16 @@ Record meaningful work from the current session, authorized connectors, and appr
 - Never report that a record was stored unless the destination confirms the write and returns an identifier.
 - If the inbox or Re:Mind Me is not connected, return the events in the response and set `delivery` to `not_delivered`. That is success at drafting, not success at storage.
 
-## Daily workflow
+## Evidence sources
+
+A scheduled run still cannot open another chat. It must not pretend those transcripts exist. It must look for evidence in the systems it can actually reach, and emit one event per evidenced item.
+
+1. This run's own context.
+2. GitHub repository `Logonotobscurity/Remindme`. Commits and merged pull requests since `00:00` in the user's timezone today. `source_reference` is the commit or pull URL. Do not describe a commit as a chat.
+3. The Drive inbox for today's date. Read it before writing. An `event_id` already stored there is included in the report and is not written again.
+4. `GET https://remindme-tau.vercel.app/api/v1/activity?date=YYYY-MM-DD` and the reminder list, only when this run already holds a bearer token. A `401` means the account was not readable. Record that gap. Do not invent the missing rows.
+
+Closed chats on Grok, ChatGPT, and Claude stay out of reach. Work in those chats is captured only by a run that was active while the chat was open.
 
 1. Review only the current run's context, connected tools, and approved project sources.
 2. Identify meaningful work: completed activities, decisions and rationale, research findings, ideas, outstanding tasks, explicitly scheduled reminders, blockers, and next steps.
