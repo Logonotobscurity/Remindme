@@ -1,82 +1,111 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { authEnabled, GROK_PROVIDERS, signIn } from "@/lib/auth/client";
+import { useState, type FormEvent } from "react";
+import { getSupabase, supabaseConfigured } from "@/lib/supabase";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
 function Login() {
-  const [busyProvider, setBusyProvider] = useState<string | null>(null);
+  const [mode, setMode] = useState<"sign-in" | "create">("sign-in");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  async function handleSignIn(providerId: string) {
-    setBusyProvider(providerId);
-    setError(null);
-    try {
-      // MCP OAuth sign-in returns to the original authorization request. Only
-      // accept the exact same-origin authorize route; never accept an external
-      // callback or an arbitrary client-controlled redirect here.
-      const rawReturnTo = new URLSearchParams(window.location.search).get("returnTo");
-      let callbackURL = "/";
-      if (rawReturnTo && rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//") && !rawReturnTo.includes("\\\\")) {
-        try {
-          const candidate = new URL(rawReturnTo, window.location.origin);
-          if (
-            candidate.origin === window.location.origin &&
-            candidate.pathname === "/oauth/authorize" &&
-            !candidate.hash
-          ) {
-            callbackURL = candidate.pathname + candidate.search;
-          }
-        } catch {
-          callbackURL = "/";
-        }
-      }
-      await signIn(providerId, { callbackURL });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Sign-in failed. Please try again.");
-      setBusyProvider(null);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const client = getSupabase();
+    if (!client) {
+      setError("Supabase sign-in is not configured for this build.");
+      return;
     }
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const credentials = { email: email.trim(), password };
+    const result = mode === "create"
+      ? await client.auth.signUp(credentials)
+      : await client.auth.signInWithPassword(credentials);
+    setBusy(false);
+    if (result.error) {
+      setError(result.error.message);
+      return;
+    }
+    if (!result.data.session) {
+      setNotice("Check your email to confirm the account, then sign in.");
+      setMode("sign-in");
+      return;
+    }
+    const rawReturnTo = new URLSearchParams(window.location.search).get("returnTo");
+    const next = rawReturnTo && rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//") ? rawReturnTo : "/";
+    window.location.assign(next);
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-100 px-4 py-8 text-slate-900">
-      <section className="w-full max-w-sm rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500">Re:Mind Me</p>
-        <h1 className="mt-2 text-2xl font-bold">Sign in to your memory</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Your activity timeline, action items, and reminders are private to your account.
+    <main className="grid min-h-dvh place-items-center bg-paper px-4 py-8 text-ink">
+      <section className="w-full max-w-sm rounded-3xl border border-line bg-surface p-6">
+        <p className="font-mono text-[10px] tracking-[0.2em] text-mute uppercase">Re:Mind Me</p>
+        <h1 className="wordmark mt-2 text-3xl">Sign in</h1>
+        <p className="mt-2 text-sm leading-6 text-mute">
+          Email and password are kept by Supabase. Reminders stay private to that account.
         </p>
-
-        {authEnabled ? (
-          <div className="mt-6 space-y-3">
-            {GROK_PROVIDERS.map((provider) => (
-              <button
-                key={provider.providerId}
-                type="button"
-                disabled={busyProvider !== null}
-                onClick={() => void handleSignIn(provider.providerId)}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold transition hover:border-violet-300 hover:bg-violet-50 disabled:cursor-wait disabled:opacity-60"
-              >
-                {busyProvider === provider.providerId
-                  ? "Connecting…"
-                  : "Continue with " + provider.label}
-              </button>
-            ))}
-          </div>
+        {supabaseConfigured ? (
+          <form className="mt-6 space-y-3" onSubmit={(event) => void submit(event)}>
+            <label className="block text-xs font-medium text-mute">
+              Email
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="mt-1 h-12 w-full rounded-xl border border-line bg-paper px-3 text-base text-ink outline-none focus:border-brand"
+              />
+            </label>
+            <label className="block text-xs font-medium text-mute">
+              Password
+              <input
+                type="password"
+                required
+                minLength={8}
+                autoComplete={mode === "create" ? "new-password" : "current-password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="mt-1 h-12 w-full rounded-xl border border-line bg-paper px-3 text-base text-ink outline-none focus:border-brand"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy}
+              className="h-12 w-full rounded-full bg-brand text-sm font-semibold text-[#082117] disabled:opacity-50"
+            >
+              {busy ? "Please wait…" : mode === "create" ? "Create account" : "Sign in"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode((current) => (current === "sign-in" ? "create" : "sign-in"));
+                setError(null);
+                setNotice(null);
+              }}
+              className="w-full text-sm text-mute"
+            >
+              {mode === "create" ? "Already have an account? Sign in" : "New here? Create an account"}
+            </button>
+          </form>
         ) : (
-          <p className="mt-6 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
-            Sign-in is not enabled for this build.
+          <p className="mt-6 rounded-2xl border border-line p-3 text-sm text-mute">
+            Sign-in is not configured for this build.
           </p>
         )}
-
+        {notice ? <p className="mt-4 text-sm text-mute">{notice}</p> : null}
         {error ? (
-          <p role="alert" className="mt-4 rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">
+          <p role="alert" className="mt-4 text-sm text-blush">
             {error}
           </p>
         ) : null}
-
-        <a href="/" className="mt-5 inline-block text-sm font-medium text-violet-700 hover:underline">
-          Back to Re:Mind Me
+        <a href="/" className="mt-5 inline-block text-sm font-medium text-ink">
+          Back
         </a>
       </section>
     </main>

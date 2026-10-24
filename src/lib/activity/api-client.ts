@@ -1,17 +1,19 @@
 import { getBearerToken } from "@/lib/auth/client";
+import { supabaseAccessToken } from "@/lib/supabase";
 
 /**
- * Same-origin REST fetch helper. Deployed requests use the session cookie;
- * live-preview requests need the bearer token captured by the auth popup.
+ * Same-origin REST fetch helper. A Supabase session sends its access token.
+ * Live-preview requests otherwise use the Better Auth bearer token. Deployed
+ * cookie sessions send no Authorization header.
  */
-export function activityApiFetch(
+export async function activityApiFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
 ): Promise<Response> {
   const headers = new Headers(init.headers);
-  const bearerToken = getBearerToken();
-  if (bearerToken && !headers.has("Authorization")) {
-    headers.set("Authorization", "Bearer " + bearerToken);
+  if (!headers.has("Authorization")) {
+    const token = (await supabaseAccessToken()) ?? getBearerToken();
+    if (token) headers.set("Authorization", "Bearer " + token);
   }
 
   return fetch(input, {

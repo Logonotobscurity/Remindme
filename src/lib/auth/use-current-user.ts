@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { authClient, authEnabled } from "./client";
+import { getSupabase, supabaseAppUser, supabaseConfigured } from "@/lib/supabase";
 
 /** Normalized user shape used across the app, auth on or off. */
 export type AppUser = {
@@ -58,9 +59,35 @@ const DEV_STATE: CurrentUserState = { user: DEV_USER, isPending: false };
  * call keeps a stable hook order across every render of a given component.
  */
 export function useCurrentUserState(): CurrentUserState {
+  if (supabaseConfigured) return useSupabaseUserState();
   if (!authEnabled) return DEV_STATE;
   // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled is constant for the app's lifetime
   return useSessionUserState();
+}
+
+function useSupabaseUserState(): CurrentUserState {
+  const [state, setState] = useState<CurrentUserState>({ user: null, isPending: true });
+  useEffect(() => {
+    const client = getSupabase();
+    if (!client) {
+      setState({ user: null, isPending: false });
+      return;
+    }
+    let live = true;
+    void client.auth.getSession().then(({ data }) => {
+      if (!live) return;
+      setState({ user: supabaseAppUser(data.session), isPending: false });
+    });
+    const { data } = client.auth.onAuthStateChange((_event, session) => {
+      if (!live) return;
+      setState({ user: supabaseAppUser(session), isPending: false });
+    });
+    return () => {
+      live = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+  return state;
 }
 
 function useSessionUserState(): CurrentUserState {

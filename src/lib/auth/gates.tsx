@@ -1,6 +1,7 @@
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { Navigate } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authEnabled, signIn, signOut } from "./client";
+import { getSupabase, supabaseConfigured } from "@/lib/supabase";
 import { hasGateSessionMarker } from "./gate-session-marker";
 import { resolveSignInGateState } from "./sign-in-gate";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
@@ -64,6 +65,13 @@ export function SignInGate({
 }
 
 export function SignInButtons() {
+  if (supabaseConfigured) {
+    return (
+      <a href="/login" className="inline-flex h-11 items-center justify-center rounded-full bg-brand px-5 text-sm font-semibold text-[#082117]">
+        Sign in
+      </a>
+    );
+  }
   return (
     <div className="flex w-full max-w-sm flex-col gap-2">
       {GROK_PROVIDERS.map((p) => (
@@ -113,14 +121,15 @@ export function UserButton() {
         </span>
       )}
       <span className="text-sm font-medium">{label}</span>
-      {authEnabled && !gateSession && (
+      {(authEnabled || supabaseConfigured) && !gateSession && (
         <button
           type="button"
           disabled={signingOut}
           onClick={() => {
             setSigningOut(true);
-            // Success navigates away; on failure re-enable so it can be retried.
-            void signOut().catch(() => setSigningOut(false));
+            const client = getSupabase();
+            const leaving = client ? client.auth.signOut().then(() => window.location.assign("/")) : signOut();
+            void leaving.catch(() => setSigningOut(false));
           }}
           className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline disabled:cursor-wait disabled:no-underline"
         >
