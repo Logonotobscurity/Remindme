@@ -30,6 +30,7 @@
  * a verified id via `@/lib/auth/middleware`.
  */
 import { betterAuth } from "better-auth";
+import { dash } from "@better-auth/infra";
 import { bearer, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
@@ -177,6 +178,11 @@ const grokOAuthPlugin = authConfigured
     })
   : null;
 
+// Dashboard analytics. Off unless the production key is present, so preview
+// sign-in does not call the Better Auth dashboard.
+const infraApiKey = env("BETTER_AUTH_API_KEY");
+const dashPlugin = infraApiKey ? dash({ apiKey: infraApiKey }) : null;
+
 export const auth = betterAuth({
   baseURL,
   // Deployed apps inject BETTER_AUTH_SECRET. Preview: process-stable secret on
@@ -242,6 +248,7 @@ export const auth = betterAuth({
     // One genericOAuth provider per upstream (when auth is on), all federating
     // to the broker with the SAME client and differing only by the `idp` hint.
     ...(grokOAuthPlugin ? [grokOAuthPlugin] : []),
+    ...(dashPlugin ? [dashPlugin] : []),
 
     // Accept `Authorization: Bearer <session-token>` as an alternative to the
     // cookie. Needed for the LIVE PREVIEW: the app runs in an embedded iframe
