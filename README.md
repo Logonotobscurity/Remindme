@@ -1,7 +1,14 @@
 # Re:Mind Me
 
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-green)](https://modelcontextprotocol.io/)
+[![Auth](https://img.shields.io/badge/Auth-OAuth%202.1%20%2B%20PKCE-orange)]()
+[![Status](https://img.shields.io/badge/Status-authenticated%20MCP-blue)]()
+
 **Authenticated AI memory and activity capture via MCP.**  
 Explicit, owner-scoped recording of activities, decisions, and action items — not silent conversation history import.
+
+<!-- Demo GIF: short recording of token creation + MCP tool call + memory view -->
 
 ---
 
@@ -28,6 +35,16 @@ Authentication:
 All reads and writes are scoped to the authenticated owner. Tokens cannot impersonate another user.
 
 ## Architecture
+
+```mermaid
+flowchart TD
+    A[MCP Client] -->|Bearer / OAuth| B["/api/v1/mcp"]
+    B --> C{Scope check}
+    C -->|activity:write| D[capture_* tools]
+    C -->|activity:read| E[search_memory / get_daily_summary]
+    D --> F[Owner-scoped DB]
+    E --> F
+```
 
 - Stateless Streamable HTTP MCP (protocol `2026-07-28` + legacy compatibility).
 - Structured request validation and size limits.
@@ -68,3 +85,9 @@ Best suited as supporting project for M-KOPA, Kredete, Scale Army, Vennote, and 
 
 - `docs/remote-mcp-activity-memory.md` — connection guide and security model
 - Tool implementation: `src/routes/api/v1/mcp.ts`
+
+## Visual assets to add
+
+1. Demo GIF of Settings → token creation → MCP tool call → memory confirmation.
+2. Social preview image (1280×640).
+3. Screenshot of the memory UI next to the tools table.
