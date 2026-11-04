@@ -10,6 +10,7 @@ export { CategoryManager } from "./CategoryManager";
 export { SearchOverlay } from "./SearchOverlay";
 export { ConversationList, ConversationDetail } from "./ConversationList";
 export { MemoriesView } from "./MemoriesView";
+export { KnowledgeView } from "./KnowledgeView";
 export { AskOmi } from "./AskOmi";
 export { IntegrationsPanel } from "./IntegrationsPanel";
 export { useVoice } from "./useVoice";
