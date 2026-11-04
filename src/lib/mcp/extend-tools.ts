@@ -1,6 +1,6 @@
 /**
  * Extension helpers for the existing MCP server at /api/v1/mcp.
- * Import these into the main route when ready to surface the new tools.
+ * Includes knowledge graph tools.
  */
 
 import { REMIND_ME_TOOLS, type McpToolDef } from "./tools";
@@ -10,11 +10,52 @@ import { buildT24hBriefing } from "@/lib/briefings/t24h";
 import { createProposedAction, checkGates, approveGate, type GateName } from "@/lib/gates/types";
 import { traceLog } from "@/lib/gates/trace";
 import type { IngestionInput } from "@/lib/ingestion/schemas";
+import { knowledgeStore, knowledgeSearch, knowledgeList } from "./knowledge-tools";
 
 const reviews = new Map<string, ReturnType<typeof checkGates>>();
 
+const KNOWLEDGE_TOOLS: McpToolDef[] = [
+  {
+    name: "remindme_knowledge_store",
+    description: "Store a fact, preference, person, or note in the user's knowledge graph.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", minLength: 1, maxLength: 1000 },
+        type: { type: "string", enum: ["person", "event", "place", "preference", "fact", "note", "task", "decision", "research", "other"] },
+      },
+      required: ["text"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "remindme_knowledge_search",
+    description: "Search the user's knowledge graph by keyword.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", minLength: 1, maxLength: 200 },
+        limit: { type: "integer", minimum: 1, maximum: 20 },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "remindme_knowledge_list",
+    description: "List recent knowledge nodes for the authenticated user.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+];
+
 export function getExtendedTools(): McpToolDef[] {
-  return REMIND_ME_TOOLS;
+  return [...REMIND_ME_TOOLS, ...KNOWLEDGE_TOOLS];
 }
 
 export async function callExtendedTool(
@@ -88,7 +129,26 @@ export async function callExtendedTool(
       return { review: updated };
     }
 
+    case "remindme_knowledge_store": {
+      const text = String(args.text ?? "").trim();
+      if (!text) throw new Error("text is required");
+      const node = knowledgeStore(userId, text, typeof args.type === "string" ? args.type : undefined);
+      return { saved: true, node };
+    }
+
+    case "remindme_knowledge_search": {
+      const query = String(args.query ?? "").trim();
+      if (!query) throw new Error("query is required");
+      const limit = typeof args.limit === "number" ? args.limit : 10;
+      return { query, results: knowledgeSearch(userId, query, limit) };
+    }
+
+    case "remindme_knowledge_list": {
+      const limit = typeof args.limit === "number" ? args.limit : 20;
+      return { results: knowledgeList(userId, limit) };
+    }
+
     default:
-      return null; // not handled by extension
+      return null;
   }
 }
