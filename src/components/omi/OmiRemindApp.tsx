@@ -1,6 +1,6 @@
 /**
  * Fully interactive Omi-styled shell.
- * Conversations, Memories, and Ask Omi.
+ * Conversations, Memories, Ask Omi, and generated Daily Recaps.
  */
 import { useEffect, useState } from "react";
 import { Calendar, Search, Settings, Smartphone, Upload, Check, Mic, Square } from "lucide-react";
@@ -9,6 +9,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { loadReminders, persistReminders, loadSaves, clearAllData, type Reminder, type SaveItem } from "@/lib/remind";
 import { loadConversations, createConversation, persistConversations, type Conversation } from "@/lib/conversation";
 import { loadMemories, addMemory, removeMemory, extractMemories, type Memory } from "@/lib/memory";
+import { generateRecentRecaps } from "@/lib/recap";
 import { ListeningPill } from "./ListeningPill";
 import { RecapScroller } from "./RecapScroller";
 import { SessionList } from "./SessionList";
@@ -22,7 +23,7 @@ import { ConversationList, ConversationDetail } from "./ConversationList";
 import { MemoriesView } from "./MemoriesView";
 import { AskOmi } from "./AskOmi";
 import { useVoice } from "./useVoice";
-import { toRecaps, toSessionGroups, toTasks, overdueCount } from "./useOmiData";
+import { toSessionGroups, toTasks, overdueCount } from "./useOmiData";
 
 type Tab = "home" | "tasks" | "save" | "graveyard" | "dashboard" | "conversations" | "memories" | "ask";
 
@@ -108,7 +109,7 @@ export function OmiRemindApp() {
     );
   }
 
-  const recaps = toRecaps(reminders);
+  const recaps = generateRecentRecaps(conversations, memories, 7);
   const groups = toSessionGroups(reminders);
   const tasks = toTasks(reminders);
   const overdue = overdueCount(reminders);
@@ -159,7 +160,11 @@ export function OmiRemindApp() {
               </div>
             )}
             <Composer reminders={reminders} scope={scope} onSaved={setReminders} />
-            {recaps.length > 0 ? <RecapScroller recaps={recaps} /> : <EmptyHint title="No recaps yet" body="Capture a reminder and it will appear here." />}
+            {recaps.length > 0 ? (
+              <RecapScroller recaps={recaps} onViewAll={() => setTab("conversations")} onOpen={() => setTab("conversations")} />
+            ) : (
+              <EmptyHint title="No recaps yet" body="Capture a conversation and today's recap will appear here." />
+            )}
             {groups.length > 0 ? <SessionList groups={groups} /> : null}
             <div className="fixed inset-x-0 bottom-0 mx-auto flex max-w-md items-center gap-2 bg-gradient-to-t from-black via-black/80 to-transparent px-5 pb-6 pt-8">
               <button type="button" onClick={() => setTab("ask")} className="flex h-14 flex-1 items-center rounded-full bg-[#1C1C1E] px-4 text-left text-[15px] text-[#8E8E93]">
