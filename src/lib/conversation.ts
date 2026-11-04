@@ -1,14 +1,15 @@
 /**
  * Conversation model for the Omi shell.
- * A conversation holds a transcript, a short summary, and extracted action items.
- * Local-first; scoped the same way as reminders.
+ * Uses stronger local extractors for summary and action items.
  */
+import { extractActions as extractActionTexts, summarize as betterSummarize } from "./extract";
 
 export type ActionItem = {
   id: string;
   text: string;
   done: boolean;
   dueAt?: number;
+  dueHint?: string;
 };
 
 export type Conversation = {
@@ -56,12 +57,18 @@ export function createConversation(
   scope = "guest",
 ): Conversation {
   const now = Date.now();
+  const extracted = extractActionTexts(input.transcript).map((a) => ({
+    id: Math.random().toString(36).slice(2, 10),
+    text: a.text,
+    done: false,
+    dueHint: a.dueHint,
+  }));
   const item: Conversation = {
     id: now.toString(36),
     title: input.title?.trim() || "Conversation",
     transcript: input.transcript.trim(),
-    summary: input.summary?.trim() || summarize(input.transcript),
-    actionItems: input.actionItems ?? extractActions(input.transcript),
+    summary: input.summary?.trim() || betterSummarize(input.transcript),
+    actionItems: input.actionItems ?? extracted,
     created: now,
     updated: now,
   };
@@ -70,24 +77,5 @@ export function createConversation(
   return item;
 }
 
-/** Very small local summarizer: first sentence or first 140 chars. */
-export function summarize(text: string): string {
-  const clean = text.replace(/\s+/g, " ").trim();
-  if (!clean) return "";
-  const sentence = clean.split(/[.!?]\s/)[0];
-  return (sentence.length > 140 ? sentence.slice(0, 137) + "…" : sentence);
-}
-
-/** Extract simple action-like phrases. */
-export function extractActions(text: string): ActionItem[] {
-  const lines = text.split(/[.!?]\s|\n/).map((s) => s.trim()).filter(Boolean);
-  const patterns = [/\b(i(?:'| wi)ll|i need to|remind me to|todo|task|follow up|send |email |call )\b/i];
-  return lines
-    .filter((line) => patterns.some((p) => p.test(line)))
-    .slice(0, 8)
-    .map((line) => ({
-      id: Math.random().toString(36).slice(2, 10),
-      text: line.replace(/^\s*(please\s+)?/i, "").trim(),
-      done: false,
-    }));
-}
+export { betterSummarize as summarize };
+export { extractActionTexts as extractActions };
