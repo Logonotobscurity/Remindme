@@ -10,10 +10,19 @@ export function CategoryManager({ scope }: { scope: string }) {
 
   const add = () => {
     if (!name.trim()) return;
-    const next = [...cats, { id: Date.now().toString(), name: name.trim(), icon: "📌" }];
+    const next: Category[] = [
+      ...cats,
+      { id: Date.now().toString(), name: name.trim(), icon: "📌", color: "#E5E7EB", custom: true },
+    ];
     setCats(next);
     persistCategories(next, scope);
     setName("");
+  };
+
+  const remove = (id: string) => {
+    const next = cats.filter((c) => c.id !== id);
+    setCats(next);
+    persistCategories(next, scope);
   };
 
   return (
@@ -21,8 +30,11 @@ export function CategoryManager({ scope }: { scope: string }) {
       <div className="mb-3 text-[15px] font-medium text-white">Categories</div>
       <div className="mb-3 flex flex-wrap gap-2">
         {(cats.length ? cats : DEFAULT_CATEGORIES).map((c) => (
-          <span key={c.id} className="rounded-full bg-[#2C2C2E] px-3 py-1 text-[12px] text-white">
+          <span key={c.id} className="inline-flex items-center gap-1 rounded-full bg-[#2C2C2E] px-3 py-1 text-[12px] text-white">
             {c.icon} {c.name}
+            {c.custom && (
+              <button type="button" onClick={() => remove(c.id)} className="ml-1 text-[#8E8E93]">×</button>
+            )}
           </span>
         ))}
       </div>
