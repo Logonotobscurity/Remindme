@@ -11,5 +11,6 @@ export { SearchOverlay } from "./SearchOverlay";
 export { ConversationList, ConversationDetail } from "./ConversationList";
 export { MemoriesView } from "./MemoriesView";
 export { AskOmi } from "./AskOmi";
+export { IntegrationsPanel } from "./IntegrationsPanel";
 export { useVoice } from "./useVoice";
 export { omiTokens } from "./tokens";
