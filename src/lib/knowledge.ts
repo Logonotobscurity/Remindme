@@ -1,7 +1,6 @@
 /**
  * Knowledge graph for Re:Mind Me.
- * Covers: store/recall, relationships, content types, hybrid search.
- * Local-first. Semantic is lightweight token overlap for now.
+ * Supports content types, relationships, hybrid search, and auto-linking.
  */
 
 export type ContentType =
@@ -61,6 +60,18 @@ function saveEdges(items: KnowledgeEdge[], scope = "guest") {
   write(key(EDGE_KEY, scope), items);
 }
 
+function tokens(s: string): string[] {
+  return s.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
+}
+
+function overlap(a: string, b: string): number {
+  const sa = new Set(tokens(a));
+  const sb = tokens(b);
+  let n = 0;
+  for (const w of sb) if (sa.has(w)) n++;
+  return n;
+}
+
 export function storeNode(
   input: { text: string; type?: ContentType; tags?: string[]; sourceConversationId?: string },
   scope = "guest",
@@ -75,13 +86,25 @@ export function storeNode(
     updated: now,
     sourceConversationId: input.sourceConversationId,
   };
-  saveNodes([node, ...loadNodes(scope)], scope);
+  const existing = loadNodes(scope);
+  saveNodes([node, ...existing], scope);
+
+  // Auto-link to top overlapping nodes
+  const candidates = existing
+    .map((n) => ({ n, s: overlap(node.text, n.text) }))
+    .filter((x) => x.s >= 2)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 3);
+  for (const c of candidates) {
+    addEdge(node.id, c.n.id, "related", scope);
+  }
+
   return node;
 }
 
 export function addEdge(from: string, to: string, relation: string, scope = "guest"): KnowledgeEdge {
   const edge: KnowledgeEdge = {
-    id: Date.now().toString(36),
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     from,
     to,
     relation,
@@ -89,18 +112,6 @@ export function addEdge(from: string, to: string, relation: string, scope = "gue
   };
   saveEdges([edge, ...loadEdges(scope)], scope);
   return edge;
-}
-
-function tokens(s: string): string[] {
-  return s.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
-}
-
-function overlap(a: string, b: string): number {
-  const sa = new Set(tokens(a));
-  const sb = tokens(b);
-  let n = 0;
-  for (const w of sb) if (sa.has(w)) n++;
-  return n;
 }
 
 export function searchNodes(query: string, scope = "guest", limit = 10): KnowledgeNode[] {
