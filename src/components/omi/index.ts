@@ -4,4 +4,7 @@ export { SessionList } from "./SessionList";
 export { TasksView } from "./TasksView";
 export { SettingsSheet } from "./SettingsSheet";
 export { OmiRemindApp } from "./OmiRemindApp";
+export { Composer } from "./Composer";
+export { SaveList, GraveyardList, DashboardSummary } from "./MoreTabs";
+export { CategoryManager } from "./CategoryManager";
 export { omiTokens } from "./tokens";
