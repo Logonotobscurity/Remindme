@@ -1,6 +1,6 @@
 /**
  * Fully interactive Omi-styled shell.
- * Conversations, Memories, Ask Omi, and generated Daily Recaps.
+ * Includes generated Daily Recaps and Integrations.
  */
 import { useEffect, useState } from "react";
 import { Calendar, Search, Settings, Smartphone, Upload, Check, Mic, Square } from "lucide-react";
@@ -22,10 +22,11 @@ import { SearchOverlay } from "./SearchOverlay";
 import { ConversationList, ConversationDetail } from "./ConversationList";
 import { MemoriesView } from "./MemoriesView";
 import { AskOmi } from "./AskOmi";
+import { IntegrationsPanel } from "./IntegrationsPanel";
 import { useVoice } from "./useVoice";
 import { toSessionGroups, toTasks, overdueCount } from "./useOmiData";
 
-type Tab = "home" | "tasks" | "save" | "graveyard" | "dashboard" | "conversations" | "memories" | "ask";
+type Tab = "home" | "tasks" | "save" | "graveyard" | "dashboard" | "conversations" | "memories" | "ask" | "integrations";
 
 export function OmiRemindApp() {
   const { user } = useCurrentUserState();
@@ -210,6 +211,7 @@ export function OmiRemindApp() {
             <CategoryManager scope={scope} />
           </div>
         )}
+        {tab === "integrations" && <IntegrationsPanel conversations={conversations} />}
       </div>
 
       <SearchOverlay
@@ -233,7 +235,7 @@ export function OmiRemindApp() {
               { id: "rec", icon: "🎤", label: "Recording & Transcription", onClick: () => voice.start() },
               { id: "voice", icon: "🔊", label: "Voice", onClick: () => voice.start() },
               { id: "notif", icon: "🔔", label: "Notifications & Display", onClick: askNotify },
-              { id: "int", icon: "🔗", label: "Integrations", badge: "BETA" },
+              { id: "int", icon: "🔗", label: "Integrations", badge: "BETA", onClick: () => { setSettingsOpen(false); setTab("integrations"); } },
               { id: "priv", icon: "🛡", label: "Data & Privacy", onClick: clearAll },
             ],
           },
