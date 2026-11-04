@@ -1,6 +1,6 @@
 /**
  * Fully interactive Omi-styled shell.
- * Includes generated Daily Recaps and Integrations.
+ * Includes knowledge graph (types, relations, hybrid search).
  */
 import { useEffect, useState } from "react";
 import { Calendar, Search, Settings, Smartphone, Upload, Check, Mic, Square } from "lucide-react";
@@ -9,6 +9,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { loadReminders, persistReminders, loadSaves, clearAllData, type Reminder, type SaveItem } from "@/lib/remind";
 import { loadConversations, createConversation, persistConversations, type Conversation } from "@/lib/conversation";
 import { loadMemories, addMemory, removeMemory, extractMemories, type Memory } from "@/lib/memory";
+import { storeNode } from "@/lib/knowledge";
 import { generateRecentRecaps } from "@/lib/recap";
 import { ListeningPill } from "./ListeningPill";
 import { RecapScroller } from "./RecapScroller";
@@ -21,12 +22,13 @@ import { CategoryManager } from "./CategoryManager";
 import { SearchOverlay } from "./SearchOverlay";
 import { ConversationList, ConversationDetail } from "./ConversationList";
 import { MemoriesView } from "./MemoriesView";
+import { KnowledgeView } from "./KnowledgeView";
 import { AskOmi } from "./AskOmi";
 import { IntegrationsPanel } from "./IntegrationsPanel";
 import { useVoice } from "./useVoice";
 import { toSessionGroups, toTasks, overdueCount } from "./useOmiData";
 
-type Tab = "home" | "tasks" | "save" | "graveyard" | "dashboard" | "conversations" | "memories" | "ask" | "integrations";
+type Tab = "home" | "tasks" | "save" | "graveyard" | "dashboard" | "conversations" | "memories" | "knowledge" | "ask" | "integrations";
 
 export function OmiRemindApp() {
   const { user } = useCurrentUserState();
@@ -62,7 +64,10 @@ export function OmiRemindApp() {
     const text = voice.transcript.trim();
     if (!text) return;
     const created = createConversation({ transcript: text }, scope);
-    for (const fact of extractMemories(text)) addMemory(fact, scope, created.id);
+    for (const fact of extractMemories(text)) {
+      addMemory(fact, scope, created.id);
+      storeNode({ text: fact, sourceConversationId: created.id }, scope);
+    }
     setConversations(loadConversations(scope));
     setMemories(loadMemories(scope));
     voice.setTranscript("");
@@ -80,7 +85,11 @@ export function OmiRemindApp() {
     persistConversations(next, scope);
   };
 
-  const onAddMemory = (text: string) => { addMemory(text, scope); setMemories(loadMemories(scope)); };
+  const onAddMemory = (text: string) => {
+    addMemory(text, scope);
+    storeNode({ text }, scope);
+    setMemories(loadMemories(scope));
+  };
   const onRemoveMemory = (id: string) => { removeMemory(id, scope); setMemories(loadMemories(scope)); };
 
   const askNotify = async () => {
@@ -135,6 +144,7 @@ export function OmiRemindApp() {
           <TabBtn active={tab === "home"} onClick={() => { setTab("home"); setOpenConvo(null); }}>Home</TabBtn>
           <TabBtn active={tab === "conversations"} onClick={() => { setTab("conversations"); setOpenConvo(null); }}>Chats</TabBtn>
           <TabBtn active={tab === "memories"} onClick={() => setTab("memories")}>Memories</TabBtn>
+          <TabBtn active={tab === "knowledge"} onClick={() => setTab("knowledge")}>Knowledge</TabBtn>
           <TabBtn active={tab === "ask"} onClick={() => setTab("ask")}>Ask</TabBtn>
           <TabBtn active={tab === "tasks"} onClick={() => setTab("tasks")}>Tasks</TabBtn>
           <TabBtn active={tab === "save"} onClick={() => setTab("save")}>Save</TabBtn>
@@ -186,6 +196,7 @@ export function OmiRemindApp() {
         )}
 
         {tab === "memories" && <MemoriesView items={memories} onAdd={onAddMemory} onRemove={onRemoveMemory} />}
+        {tab === "knowledge" && <KnowledgeView scope={scope} />}
 
         {tab === "ask" && (
           <AskOmi
@@ -239,7 +250,7 @@ export function OmiRemindApp() {
               { id: "priv", icon: "🛡", label: "Data & Privacy", onClick: clearAll },
             ],
           },
-          { rows: [{ id: "mem", icon: "🧠", label: "Memories", onClick: () => { setSettingsOpen(false); setTab("memories"); } }, { id: "goals", icon: "🎯", label: "Goals" }] },
+          { rows: [{ id: "mem", icon: "🧠", label: "Memories", onClick: () => { setSettingsOpen(false); setTab("knowledge"); } }, { id: "goals", icon: "🎯", label: "Goals" }] },
         ]}
       />
     </div>
