@@ -1,12 +1,13 @@
 /**
  * Server-side dual-layer memory service.
  *
- * Used by API routes. Currently in-memory (process-local).
- * Replace the store with Redis (working) + pgvector (long-term) without changing callers.
+ * Working memory: Redis when REDIS_URL is set, otherwise in-memory.
+ * Long-term: process-local for now (swap for pgvector later).
  */
 
 import type { MemoryRecord, MemoryScope } from "./dual-layer";
 import { redactForPrompt } from "./dual-layer";
+import { serverWorkingMemory } from "./redis-working";
 
 interface ActivityInput {
   title: string;
@@ -18,7 +19,6 @@ interface ActivityInput {
   occurredAt?: string;
 }
 
-const working = new Map<string, MemoryRecord[]>();
 const longTerm = new Map<string, MemoryRecord[]>();
 
 function scopeKey(scope: MemoryScope) {
@@ -45,8 +45,7 @@ export const serverMemory = {
       sensitivity: activity.privacyLevel === "public" ? "public" : "private",
     };
 
-    const list = working.get(key) ?? [];
-    working.set(key, [record, ...list].slice(0, 200));
+    await serverWorkingMemory.put(key, { ...record, ttlMs: 1000 * 60 * 60 * 24 * 7 });
 
     // Also keep a copy in long-term for now (will move to vector store)
     const lt = longTerm.get(key) ?? [];
@@ -56,7 +55,7 @@ export const serverMemory = {
   /** Retrieve redacted memories suitable for LLM prompts. */
   async retrieveForPrompt(scope: MemoryScope, _query: string, limit = 20): Promise<MemoryRecord[]> {
     const key = scopeKey(scope);
-    const recent = (working.get(key) ?? []).slice(0, limit);
+    const recent = await serverWorkingMemory.recent(key, limit);
     return recent.map(redactForPrompt);
   },
 
