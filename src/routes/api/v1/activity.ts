@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { authorizeActivityRequest } from "@/lib/activity/api-auth.server";
 import { createActivity, listActivities } from "@/lib/activity/service";
+import { serverMemory } from "@/lib/memory/server";
 
 const activitySchema = z.object({
   source: z.enum(["claude", "grok", "chatgpt", "pwa", "log_on", "voice", "manual", "system"]),
@@ -68,6 +69,10 @@ export const Route = createFileRoute("/api/v1/activity")({
     }
 
     const activityId = await createActivity(auth.userId, parsed.data);
+
+    // Dual-layer: also write into working memory (redaction-ready)
+    await serverMemory.recordActivity(auth.userId, parsed.data, activityId);
+
     return Response.json(
       { id: activityId },
       { status: 201, headers: { "Cache-Control": "no-store" } },
