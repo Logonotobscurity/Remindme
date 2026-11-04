@@ -1,6 +1,6 @@
 /**
  * Extension helpers for the existing MCP server at /api/v1/mcp.
- * Includes knowledge graph tools.
+ * Includes knowledge graph tools (Redis-backed when available).
  */
 
 import { REMIND_ME_TOOLS, type McpToolDef } from "./tools";
@@ -132,7 +132,7 @@ export async function callExtendedTool(
     case "remindme_knowledge_store": {
       const text = String(args.text ?? "").trim();
       if (!text) throw new Error("text is required");
-      const node = knowledgeStore(userId, text, typeof args.type === "string" ? args.type : undefined);
+      const node = await knowledgeStore(userId, text, typeof args.type === "string" ? args.type : undefined);
       return { saved: true, node };
     }
 
@@ -140,12 +140,12 @@ export async function callExtendedTool(
       const query = String(args.query ?? "").trim();
       if (!query) throw new Error("query is required");
       const limit = typeof args.limit === "number" ? args.limit : 10;
-      return { query, results: knowledgeSearch(userId, query, limit) };
+      return { query, results: await knowledgeSearch(userId, query, limit) };
     }
 
     case "remindme_knowledge_list": {
       const limit = typeof args.limit === "number" ? args.limit : 20;
-      return { results: knowledgeList(userId, limit) };
+      return { results: await knowledgeList(userId, limit) };
     }
 
     default:
