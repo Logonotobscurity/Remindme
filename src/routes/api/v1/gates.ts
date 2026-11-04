@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { authorizeActivityRequest } from "@/lib/activity/api-auth.server";
 import { createProposedAction, checkGates, approveGate, type GateName } from "@/lib/gates/types";
+import { traceLog } from "@/lib/gates/trace";
 
 const proposeSchema = z.object({
   intent: z.string().min(1).max(500),
@@ -50,6 +51,13 @@ export const Route = createFileRoute("/api/v1/gates")({
         const review = checkGates(action);
         reviews.set(action.id, review);
 
+        traceLog.append({
+          actionId: action.id,
+          event: "proposed",
+          actor: auth.userId,
+          snapshot: { intent: action.intent, target: action.target, scope: action.scope },
+        });
+
         return Response.json({ review }, { status: 201 });
       },
 
@@ -86,11 +94,29 @@ export const Route = createFileRoute("/api/v1/gates")({
             canExecute: false,
           };
           reviews.set(parsed.data.actionId, updated);
+
+          traceLog.append({
+            actionId: parsed.data.actionId,
+            event: "gate_rejected",
+            gate: parsed.data.gate,
+            actor: auth.userId,
+            reason: parsed.data.reason,
+          });
+
           return Response.json({ review: updated });
         }
 
         const updated = approveGate(existing, parsed.data.gate as GateName, auth.userId, parsed.data.reason);
         reviews.set(parsed.data.actionId, updated);
+
+        traceLog.append({
+          actionId: parsed.data.actionId,
+          event: "gate_approved",
+          gate: parsed.data.gate,
+          actor: auth.userId,
+          reason: parsed.data.reason,
+        });
+
         return Response.json({ review: updated });
       },
     },
