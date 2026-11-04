@@ -66,7 +66,10 @@ export function ConversationDetail({
                   onChange={() => onToggleAction(a.id)}
                   className="mt-1 h-4 w-4 rounded-full border border-[#8E8E93] bg-transparent"
                 />
-                <span className={`text-[14px] ${a.done ? "text-[#636366] line-through" : "text-white"}`}>{a.text}</span>
+                <span className="flex-1">
+                  <span className={`text-[14px] ${a.done ? "text-[#636366] line-through" : "text-white"}`}>{a.text}</span>
+                  {a.dueHint && <span className="ml-2 text-[12px] text-[#8E8E93]">· {a.dueHint}</span>}
+                </span>
               </label>
             ))}
           </div>
