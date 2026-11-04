@@ -1,6 +1,6 @@
 /**
  * Fully interactive Omi-styled shell.
- * Conversations + Memories.
+ * Conversations, Memories, and Ask Omi.
  */
 import { useEffect, useState } from "react";
 import { Calendar, Search, Settings, Smartphone, Upload, Check, Mic, Square } from "lucide-react";
@@ -20,10 +20,11 @@ import { CategoryManager } from "./CategoryManager";
 import { SearchOverlay } from "./SearchOverlay";
 import { ConversationList, ConversationDetail } from "./ConversationList";
 import { MemoriesView } from "./MemoriesView";
+import { AskOmi } from "./AskOmi";
 import { useVoice } from "./useVoice";
 import { toRecaps, toSessionGroups, toTasks, overdueCount } from "./useOmiData";
 
-type Tab = "home" | "tasks" | "save" | "graveyard" | "dashboard" | "conversations" | "memories";
+type Tab = "home" | "tasks" | "save" | "graveyard" | "dashboard" | "conversations" | "memories" | "ask";
 
 export function OmiRemindApp() {
   const { user } = useCurrentUserState();
@@ -59,10 +60,7 @@ export function OmiRemindApp() {
     const text = voice.transcript.trim();
     if (!text) return;
     const created = createConversation({ transcript: text }, scope);
-    // Extract simple facts into memories
-    for (const fact of extractMemories(text)) {
-      addMemory(fact, scope, created.id);
-    }
+    for (const fact of extractMemories(text)) addMemory(fact, scope, created.id);
     setConversations(loadConversations(scope));
     setMemories(loadMemories(scope));
     voice.setTranscript("");
@@ -80,14 +78,8 @@ export function OmiRemindApp() {
     persistConversations(next, scope);
   };
 
-  const onAddMemory = (text: string) => {
-    addMemory(text, scope);
-    setMemories(loadMemories(scope));
-  };
-  const onRemoveMemory = (id: string) => {
-    removeMemory(id, scope);
-    setMemories(loadMemories(scope));
-  };
+  const onAddMemory = (text: string) => { addMemory(text, scope); setMemories(loadMemories(scope)); };
+  const onRemoveMemory = (id: string) => { removeMemory(id, scope); setMemories(loadMemories(scope)); };
 
   const askNotify = async () => {
     if (typeof Notification === "undefined") return;
@@ -141,6 +133,7 @@ export function OmiRemindApp() {
           <TabBtn active={tab === "home"} onClick={() => { setTab("home"); setOpenConvo(null); }}>Home</TabBtn>
           <TabBtn active={tab === "conversations"} onClick={() => { setTab("conversations"); setOpenConvo(null); }}>Chats</TabBtn>
           <TabBtn active={tab === "memories"} onClick={() => setTab("memories")}>Memories</TabBtn>
+          <TabBtn active={tab === "ask"} onClick={() => setTab("ask")}>Ask</TabBtn>
           <TabBtn active={tab === "tasks"} onClick={() => setTab("tasks")}>Tasks</TabBtn>
           <TabBtn active={tab === "save"} onClick={() => setTab("save")}>Save</TabBtn>
           <TabBtn active={tab === "graveyard"} onClick={() => setTab("graveyard")}>Graveyard</TabBtn>
@@ -169,7 +162,9 @@ export function OmiRemindApp() {
             {recaps.length > 0 ? <RecapScroller recaps={recaps} /> : <EmptyHint title="No recaps yet" body="Capture a reminder and it will appear here." />}
             {groups.length > 0 ? <SessionList groups={groups} /> : null}
             <div className="fixed inset-x-0 bottom-0 mx-auto flex max-w-md items-center gap-2 bg-gradient-to-t from-black via-black/80 to-transparent px-5 pb-6 pt-8">
-              <div className="flex h-14 flex-1 items-center rounded-full bg-[#1C1C1E] px-4 text-[15px] text-[#8E8E93]">Ask Re:Mind Me</div>
+              <button type="button" onClick={() => setTab("ask")} className="flex h-14 flex-1 items-center rounded-full bg-[#1C1C1E] px-4 text-left text-[15px] text-[#8E8E93]">
+                Ask Re:Mind Me
+              </button>
               <button type="button" onClick={voice.start} className="grid h-14 w-14 place-items-center rounded-full bg-white text-black shadow-lg" aria-label="Listen">
                 {voice.listening ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
               </button>
@@ -185,6 +180,21 @@ export function OmiRemindApp() {
         )}
 
         {tab === "memories" && <MemoriesView items={memories} onAdd={onAddMemory} onRemove={onRemoveMemory} />}
+
+        {tab === "ask" && (
+          <AskOmi
+            conversations={conversations}
+            memories={memories}
+            onOpenSource={(type, id) => {
+              if (type === "conversation") {
+                setOpenConvo(id);
+                setTab("conversations");
+              } else {
+                setTab("memories");
+              }
+            }}
+          />
+        )}
 
         {tab === "tasks" && <TasksView tasks={tasks} overdueCount={overdue} onAdd={() => setTab("home")} onToggle={toggleTask} />}
         {tab === "save" && <SaveList items={saves} />}
