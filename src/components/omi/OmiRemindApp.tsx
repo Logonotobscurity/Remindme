@@ -1,13 +1,12 @@
 /**
- * Omi-styled shell for Re:Mind Me.
- * MindOrb remains central. Composer, Save, Graveyard, Dashboard, and categories are now included.
- * Original RemindApp is left intact.
+ * Fully interactive Omi-styled shell.
+ * MindOrb remains central. Search, voice, composer, and settings actions work.
  */
 import { useEffect, useState } from "react";
 import { Calendar, Search, Settings, Smartphone, Upload, Check, Mic, Square } from "lucide-react";
 import { MindOrb } from "@/components/MindOrb";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { loadReminders, persistReminders, loadSaves, type Reminder, type SaveItem } from "@/lib/remind";
+import { loadReminders, persistReminders, loadSaves, clearAllData, type Reminder, type SaveItem } from "@/lib/remind";
 import { ListeningPill } from "./ListeningPill";
 import { RecapScroller } from "./RecapScroller";
 import { SessionList } from "./SessionList";
@@ -16,6 +15,8 @@ import { SettingsSheet } from "./SettingsSheet";
 import { Composer } from "./Composer";
 import { SaveList, GraveyardList, DashboardSummary } from "./MoreTabs";
 import { CategoryManager } from "./CategoryManager";
+import { SearchOverlay } from "./SearchOverlay";
+import { useVoice } from "./useVoice";
 import { toRecaps, toSessionGroups, toTasks, overdueCount } from "./useOmiData";
 
 type Tab = "home" | "tasks" | "save" | "graveyard" | "dashboard";
@@ -26,9 +27,10 @@ export function OmiRemindApp() {
   const [tab, setTab] = useState<Tab>("home");
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [saves, setSaves] = useState<SaveItem[]>([]);
-  const [listening, setListening] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [ready, setReady] = useState(false);
+  const voice = useVoice();
 
   useEffect(() => {
     setReminders(loadReminders(scope));
@@ -42,6 +44,19 @@ export function OmiRemindApp() {
     );
     setReminders(next);
     persistReminders(next, scope);
+  };
+
+  const askNotify = async () => {
+    if (typeof Notification === "undefined") return;
+    await Notification.requestPermission();
+  };
+
+  const clearAll = () => {
+    if (!confirm("Clear all local reminders, saves, and categories on this device?")) return;
+    clearAllData(scope);
+    setReminders([]);
+    setSaves([]);
+    setSettingsOpen(false);
   };
 
   if (!ready) {
@@ -67,7 +82,7 @@ export function OmiRemindApp() {
           </div>
           <div className="flex gap-2">
             <IconBtn><Calendar className="h-4 w-4" /></IconBtn>
-            <IconBtn><Search className="h-4 w-4" /></IconBtn>
+            <IconBtn onClick={() => setSearchOpen(true)}><Search className="h-4 w-4" /></IconBtn>
             <IconBtn onClick={() => setSettingsOpen(true)}><Settings className="h-4 w-4" /></IconBtn>
           </div>
         </div>
@@ -87,18 +102,23 @@ export function OmiRemindApp() {
         {tab === "home" && (
           <>
             <div className="mb-2 flex justify-center">
-              <MindOrb listening={listening} recording={false} busy={false} catching={false} ready={ready} night />
+              <MindOrb listening={voice.listening} recording={false} busy={false} catching={false} ready={ready} night />
             </div>
-            <ListeningPill listening={listening} onPause={() => setListening(false)} />
+            <ListeningPill listening={voice.listening} onPause={voice.stop} />
+            {voice.transcript && (
+              <div className="mb-3 rounded-2xl bg-[#1C1C1E] px-4 py-3 text-[14px] text-white">
+                {voice.transcript}
+              </div>
+            )}
             <Composer reminders={reminders} scope={scope} onSaved={setReminders} />
             {recaps.length > 0 ? <RecapScroller recaps={recaps} /> : <EmptyHint title="No recaps yet" body="Capture a reminder and it will appear here." />}
             {groups.length > 0 ? <SessionList groups={groups} /> : null}
             <div className="fixed inset-x-0 bottom-0 mx-auto flex max-w-md items-center gap-2 bg-gradient-to-t from-black via-black/80 to-transparent px-5 pb-6 pt-8">
               <div className="flex h-14 flex-1 items-center rounded-full bg-[#1C1C1E] px-4 text-[15px] text-[#8E8E93]">Ask Re:Mind Me</div>
-              <button type="button" onClick={() => setListening((v) => !v)} className="grid h-14 w-14 place-items-center rounded-full bg-white text-black shadow-lg" aria-label="Listen">
-                {listening ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+              <button type="button" onClick={voice.start} className="grid h-14 w-14 place-items-center rounded-full bg-white text-black shadow-lg" aria-label="Listen">
+                {voice.listening ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
               </button>
-              <IconBtn size="lg"><Square className="h-5 w-5" /></IconBtn>
+              <IconBtn size="lg" onClick={voice.stop}><Square className="h-5 w-5" /></IconBtn>
             </div>
           </>
         )}
@@ -114,14 +134,32 @@ export function OmiRemindApp() {
         )}
       </div>
 
+      <SearchOverlay
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        reminders={reminders}
+        saves={saves}
+        onOpenReminder={() => setTab("home")}
+        onOpenSave={() => setTab("save")}
+      />
+
       <SettingsSheet
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         profile={user ? { name: user.name ?? "You", email: user.email } : { name: "Guest" }}
         groups={[
           { rows: [{ id: "plan", icon: "📊", label: "Plan & Usage" }, { id: "ref", icon: "🎁", label: "Referral Program", badge: "NEW" }] },
-          { rows: [{ id: "device", icon: "📱", label: "Device" }, { id: "rec", icon: "🎤", label: "Recording & Transcription" }, { id: "voice", icon: "🔊", label: "Voice" }, { id: "notif", icon: "🔔", label: "Notifications & Display" }, { id: "int", icon: "🔗", label: "Integrations", badge: "BETA" }, { id: "priv", icon: "🛡", label: "Data & Privacy" }] },
-          { rows: [{ id: "mem", icon: "🧠", label: "Memories" }, { id: "goals", icon: "🎯", label: "Goals" }] },
+          {
+            rows: [
+              { id: "device", icon: "📱", label: "Device" },
+              { id: "rec", icon: "🎤", label: "Recording & Transcription", onClick: () => voice.start() },
+              { id: "voice", icon: "🔊", label: "Voice", onClick: () => voice.start() },
+              { id: "notif", icon: "🔔", label: "Notifications & Display", onClick: askNotify },
+              { id: "int", icon: "🔗", label: "Integrations", badge: "BETA" },
+              { id: "priv", icon: "🛡", label: "Data & Privacy", onClick: clearAll },
+            ],
+          },
+          { rows: [{ id: "mem", icon: "🧠", label: "Memories", onClick: () => { setSettingsOpen(false); setTab("dashboard"); } }, { id: "goals", icon: "🎯", label: "Goals" }] },
         ]}
       />
     </div>
