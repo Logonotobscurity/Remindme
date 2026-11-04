@@ -1,7 +1,8 @@
 /**
  * Durable memories for the Omi shell.
- * Facts that persist beyond a single conversation.
+ * Uses the shared stronger extractor.
  */
+import { extractMemories as extractMemoryTexts } from "./extract";
 
 export type Memory = {
   id: string;
@@ -60,9 +61,6 @@ export function removeMemory(id: string, scope = "guest") {
   return next;
 }
 
-/** Pull simple fact-like sentences from a transcript. */
 export function extractMemories(transcript: string): string[] {
-  const lines = transcript.split(/[.!?]\s|\n/).map((s) => s.trim()).filter(Boolean);
-  const patterns = [/\b(i am|i'm|my |we are|our |prefers?|likes?|lives in|works at|name is)\b/i];
-  return lines.filter((line) => patterns.some((p) => p.test(line))).slice(0, 6);
+  return extractMemoryTexts(transcript);
 }
