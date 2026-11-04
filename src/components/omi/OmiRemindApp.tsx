@@ -1,6 +1,6 @@
 /**
  * Fully interactive Omi-styled shell.
- * Includes conversations (transcript + summary + action items).
+ * Conversations + Memories.
  */
 import { useEffect, useState } from "react";
 import { Calendar, Search, Settings, Smartphone, Upload, Check, Mic, Square } from "lucide-react";
@@ -8,6 +8,7 @@ import { MindOrb } from "@/components/MindOrb";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { loadReminders, persistReminders, loadSaves, clearAllData, type Reminder, type SaveItem } from "@/lib/remind";
 import { loadConversations, createConversation, persistConversations, type Conversation } from "@/lib/conversation";
+import { loadMemories, addMemory, removeMemory, extractMemories, type Memory } from "@/lib/memory";
 import { ListeningPill } from "./ListeningPill";
 import { RecapScroller } from "./RecapScroller";
 import { SessionList } from "./SessionList";
@@ -18,10 +19,11 @@ import { SaveList, GraveyardList, DashboardSummary } from "./MoreTabs";
 import { CategoryManager } from "./CategoryManager";
 import { SearchOverlay } from "./SearchOverlay";
 import { ConversationList, ConversationDetail } from "./ConversationList";
+import { MemoriesView } from "./MemoriesView";
 import { useVoice } from "./useVoice";
 import { toRecaps, toSessionGroups, toTasks, overdueCount } from "./useOmiData";
 
-type Tab = "home" | "tasks" | "save" | "graveyard" | "dashboard" | "conversations";
+type Tab = "home" | "tasks" | "save" | "graveyard" | "dashboard" | "conversations" | "memories";
 
 export function OmiRemindApp() {
   const { user } = useCurrentUserState();
@@ -30,6 +32,7 @@ export function OmiRemindApp() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [saves, setSaves] = useState<SaveItem[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [memories, setMemories] = useState<Memory[]>([]);
   const [openConvo, setOpenConvo] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -40,6 +43,7 @@ export function OmiRemindApp() {
     setReminders(loadReminders(scope));
     setSaves(loadSaves(scope));
     setConversations(loadConversations(scope));
+    setMemories(loadMemories(scope));
     setReady(true);
   }, [scope]);
 
@@ -55,7 +59,12 @@ export function OmiRemindApp() {
     const text = voice.transcript.trim();
     if (!text) return;
     const created = createConversation({ transcript: text }, scope);
+    // Extract simple facts into memories
+    for (const fact of extractMemories(text)) {
+      addMemory(fact, scope, created.id);
+    }
     setConversations(loadConversations(scope));
+    setMemories(loadMemories(scope));
     voice.setTranscript("");
     setOpenConvo(created.id);
     setTab("conversations");
@@ -71,6 +80,15 @@ export function OmiRemindApp() {
     persistConversations(next, scope);
   };
 
+  const onAddMemory = (text: string) => {
+    addMemory(text, scope);
+    setMemories(loadMemories(scope));
+  };
+  const onRemoveMemory = (id: string) => {
+    removeMemory(id, scope);
+    setMemories(loadMemories(scope));
+  };
+
   const askNotify = async () => {
     if (typeof Notification === "undefined") return;
     await Notification.requestPermission();
@@ -79,10 +97,14 @@ export function OmiRemindApp() {
   const clearAll = () => {
     if (!confirm("Clear all local data on this device?")) return;
     clearAllData(scope);
-    localStorage.removeItem(scope === "guest" ? "remindme.conversations" : "remindme.conversations." + encodeURIComponent(scope));
+    const convKey = scope === "guest" ? "remindme.conversations" : "remindme.conversations." + encodeURIComponent(scope);
+    const memKey = scope === "guest" ? "remindme.memories" : "remindme.memories." + encodeURIComponent(scope);
+    localStorage.removeItem(convKey);
+    localStorage.removeItem(memKey);
     setReminders([]);
     setSaves([]);
     setConversations([]);
+    setMemories([]);
     setSettingsOpen(false);
   };
 
@@ -118,6 +140,7 @@ export function OmiRemindApp() {
         <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-2">
           <TabBtn active={tab === "home"} onClick={() => { setTab("home"); setOpenConvo(null); }}>Home</TabBtn>
           <TabBtn active={tab === "conversations"} onClick={() => { setTab("conversations"); setOpenConvo(null); }}>Chats</TabBtn>
+          <TabBtn active={tab === "memories"} onClick={() => setTab("memories")}>Memories</TabBtn>
           <TabBtn active={tab === "tasks"} onClick={() => setTab("tasks")}>Tasks</TabBtn>
           <TabBtn active={tab === "save"} onClick={() => setTab("save")}>Save</TabBtn>
           <TabBtn active={tab === "graveyard"} onClick={() => setTab("graveyard")}>Graveyard</TabBtn>
@@ -161,6 +184,8 @@ export function OmiRemindApp() {
             : <ConversationList items={conversations} onOpen={setOpenConvo} />
         )}
 
+        {tab === "memories" && <MemoriesView items={memories} onAdd={onAddMemory} onRemove={onRemoveMemory} />}
+
         {tab === "tasks" && <TasksView tasks={tasks} overdueCount={overdue} onAdd={() => setTab("home")} onToggle={toggleTask} />}
         {tab === "save" && <SaveList items={saves} />}
         {tab === "graveyard" && <GraveyardList items={reminders} />}
@@ -197,7 +222,7 @@ export function OmiRemindApp() {
               { id: "priv", icon: "🛡", label: "Data & Privacy", onClick: clearAll },
             ],
           },
-          { rows: [{ id: "mem", icon: "🧠", label: "Memories", onClick: () => { setSettingsOpen(false); setTab("conversations"); } }, { id: "goals", icon: "🎯", label: "Goals" }] },
+          { rows: [{ id: "mem", icon: "🧠", label: "Memories", onClick: () => { setSettingsOpen(false); setTab("memories"); } }, { id: "goals", icon: "🎯", label: "Goals" }] },
         ]}
       />
     </div>
