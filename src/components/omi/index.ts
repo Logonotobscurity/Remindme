@@ -8,5 +8,6 @@ export { Composer } from "./Composer";
 export { SaveList, GraveyardList, DashboardSummary } from "./MoreTabs";
 export { CategoryManager } from "./CategoryManager";
 export { SearchOverlay } from "./SearchOverlay";
+export { ConversationList, ConversationDetail } from "./ConversationList";
 export { useVoice } from "./useVoice";
 export { omiTokens } from "./tokens";
